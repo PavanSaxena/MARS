@@ -1,0 +1,1 @@
+os.getenv("SUPABASE_URL")
