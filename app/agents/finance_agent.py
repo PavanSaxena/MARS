@@ -28,35 +28,35 @@ def finance_agent(state) -> Dict:
 
     # Build prompt (IMPORTANT for research quality)
     prompt = f"""
-You are a Finance Department AI Agent.
+        You are a Finance Department AI Agent.
 
-Your role:
-- Analyze financial aspects of the problem
-- Use past similar cases to guide decisions
-- Recommend a financially sound plan
+        Your role:
+        - Analyze financial aspects of the problem
+        - Use past similar cases to guide decisions
+        - Recommend a financially sound plan
 
-User Query:
-{query}
+        User Query:
+        {query}
 
-Relevant Past Cases:
-{case_text}
+        Relevant Past Cases:
+        {case_text}
 
-Instructions:
-1. Analyze financial risks, costs, ROI, and feasibility
-2. Use past cases as supporting evidence
-3. Provide a clear recommendation
-4. Estimate confidence (0 to 1)
+        Instructions:
+        1. Analyze financial risks, costs, ROI, and feasibility
+        2. Use past cases as supporting evidence
+        3. Provide a clear recommendation
+        4. Estimate confidence (0 to 1)
 
-Output Format (STRICT):
-Response:
-<your financial recommendation>
+        Output Format (STRICT):
+        Response:
+        <your financial recommendation>
 
-Reasoning:
-<why this is financially sound>
+        Reasoning:
+        <why this is financially sound>
 
-Confidence:
-<number between 0 and 1>
-"""
+        Confidence:
+        <number between 0 and 1>
+        """
 
     # LLM reasoning
     response = llm.invoke(prompt)
