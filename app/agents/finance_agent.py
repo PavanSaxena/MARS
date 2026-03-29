@@ -5,7 +5,6 @@ from app.services.case_retrieval_service import get_similar_cases
 # Initialize LLM (reuse config if already global)
 llm = init_chat_model("groq:llama-3.3-70b-versatile")
 
-
 def finance_agent(state) -> Dict:
     """
     Finance Agent:
@@ -19,7 +18,7 @@ def finance_agent(state) -> Dict:
 
     # Retrieve similar cases (ANN search)
     try:
-        cases = get_similar_cases(query=query, domain="finance", k=5)
+        cases = get_similar_cases(query=query, domain="finance", k=5) # verify
     except Exception:
         cases = []
 

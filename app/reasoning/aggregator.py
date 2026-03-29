@@ -1,12 +1,25 @@
-def aggregator_agent(state: State):
+from typing import Any, Dict
+
+from langchain.chat_models import init_chat_model
+
+
+llm = init_chat_model("groq:llama-3.3-70b-versatile")
+
+
+def aggregator_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+    finance_output = state.get("finance_output", {})
+    rd_output = state.get("rd_output", {})
+    legal_output = state.get("legal_output", {})
+    operations_output = state.get("operations_output", {})
+
     prompt = f"""
     You are a strategic decision-making AI.
 
     Inputs:
-    Finance: {state['finance_output']}
-    R&D: {state['rd_output']}
-    Legal: {state['legal_output']}
-    Operations: {state['operations_output']}
+    Finance: {finance_output}
+    R&D: {rd_output}
+    Legal: {legal_output}
+    Operations: {operations_output}
 
     Instructions:
     1. Identify key recommendations from each department
@@ -27,5 +40,5 @@ def aggregator_agent(state: State):
 
     return {
         "final_output": response.content,
-        "messages": state["messages"] + [response]
+        "messages": state.get("messages", []) + [response]
     }
