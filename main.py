@@ -1,3 +1,5 @@
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from app.api.routes import router
 from langgraph.graph import StateGraph, START, END
@@ -9,8 +11,13 @@ from app.agents.legal_agent import legal_agent
 from app.agents.operations_agent import operations_agent
 from app.reasoning.aggregator import aggregator_agent
 
-app = FastAPI()
-memory = MemorySaver()
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+app = FastAPI(
+    title="MARS Multi-Agent Decision System",
+    description="A multi-agent AI system for strategic decision-making across Finance, R&D, Legal, and Operations.",
+    version="0.1.0",
+)
 
 prompt = f"""
     You are a strategic decision system.
