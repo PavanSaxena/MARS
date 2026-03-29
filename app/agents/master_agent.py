@@ -1,39 +1,32 @@
-from typing import Annotated
 import os
-from langchain_tavily import TavilySearch
+from typing import Annotated
 from langchain.chat_models import init_chat_model
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from pathlib import Path
 
+from app.state import State
+from app.agents.finance_agent import finance_agent
+from app.agents.rd_agent import rd_agent
+from app.agents.legal_agent import legal_agent
+from app.agents.operations_agent import operations_agent
+from app.reasoning.aggregator import aggregator_agent
+
+# Load environment variables
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
 
+# Initialize LLM
 llm = init_chat_model("groq:llama-3.3-70b-versatile")
 
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-    route: str
 
-search_tool = TavilySearch(max_results=3)
-tools = [search_tool]
-
-tools_llm = llm.bind_tools(tools)
-
-def determine_route(response):
-    content = response.content.lower()
-    if "search" in content:
-        return "retrieval_agent"
-    elif "analyze" in content:
-        return "reasoning_agent"
-    else:
-        return "final"
-
-def retrieval_node(state: State):
+def master_router(state: State) -> dict:
+    """
+    Master agent: receives the user query and passes it through to all
+    department agents in parallel. Acts as the entry/routing node.
+    """
     return {"messages": state["messages"]}
 
 def reasoning_node(state: State):
