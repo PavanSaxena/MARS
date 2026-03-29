@@ -26,7 +26,7 @@ def build_graph() -> StateGraph:
     # Register all nodes
     builder.add_node("master", master_router)
     builder.add_node("finance", finance_agent)
-    # builder.add_node("rd", rd_agent)
+    builder.add_node("rd", rd_agent)
     # builder.add_node("legal", legal_agent)
     # builder.add_node("operations", operations_agent)
     builder.add_node("aggregator", aggregator_agent)
@@ -37,14 +37,14 @@ def build_graph() -> StateGraph:
     # Parallel fan-out from master to all department agents
     builder.add_edge("master", "finance")
     builder.add_edge("master", "rd")
-    builder.add_edge("master", "legal")
-    builder.add_edge("master", "operations")
+    # builder.add_edge("master", "legal")
+    # builder.add_edge("master", "operations")
 
     # Fan-in: all departments feed into aggregator
     builder.add_edge("finance", "aggregator")
     builder.add_edge("rd", "aggregator")
-    builder.add_edge("legal", "aggregator")
-    builder.add_edge("operations", "aggregator")
+    # builder.add_edge("legal", "aggregator")
+    # builder.add_edge("operations", "aggregator")
 
     # Aggregator is the terminal node
     builder.add_edge("aggregator", END)
