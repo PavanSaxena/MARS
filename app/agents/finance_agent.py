@@ -3,9 +3,9 @@ from langchain.chat_models import init_chat_model
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
 
+llm = init_chat_model("groq:llama-3.3-70b-versatile")
 
-def finance_agent(state: State) -> Dict:
-    llm = init_chat_model("groq:llama-3.3-70b-versatile")
+def finance_agent(state) -> Dict:
     """
     Finance Agent:
     - Retrieves similar financial cases from ChromaDB
@@ -16,9 +16,8 @@ def finance_agent(state: State) -> Dict:
 
     # Retrieve similar cases via ANN search
     try:
-        cases = get_similar_cases(query=query, domain="finance", k=5)
-    except Exception as e:
-        print(f"[finance_agent] Case retrieval failed: {e}")
+        cases = get_similar_cases(query=query, domain="finance", k=5) # verify
+    except Exception:
         cases = []
 
     case_text = (
