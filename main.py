@@ -1,5 +1,9 @@
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from app.api.routes import router
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 app = FastAPI(
     title="MARS Multi-Agent Decision System",

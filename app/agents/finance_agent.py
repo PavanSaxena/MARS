@@ -3,10 +3,9 @@ from langchain.chat_models import init_chat_model
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
 
-llm = init_chat_model("groq:llama-3.3-70b-versatile")
-
 
 def finance_agent(state: State) -> Dict:
+    llm = init_chat_model("groq:llama-3.3-70b-versatile")
     """
     Finance Agent:
     - Retrieves similar financial cases from ChromaDB
