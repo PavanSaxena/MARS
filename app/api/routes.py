@@ -4,15 +4,12 @@ from app.agents.master_agent import run_graph
 
 router = APIRouter()
 
-
 class QueryRequest(BaseModel):
     query: str
     thread_id: str = "default"
 
-
 class QueryResponse(BaseModel):
     result: str
-
 
 @router.post("/query", response_model=QueryResponse)
 def query_system(request: QueryRequest):

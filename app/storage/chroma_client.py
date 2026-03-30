@@ -2,7 +2,7 @@ import chromadb
 from pathlib import Path
 
 # Resolve DB path relative to the project root regardless of where the script is run
-DB_PATH = str(Path(__file__).resolve().parents[4] / "chromadb" / "chroma_db")
+DB_PATH = str(Path(__file__).resolve().parents[2] / "chromadb" / "chroma_db")
 
 
 def get_collection(collection_name: str = "mars_cases"):

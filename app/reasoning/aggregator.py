@@ -2,9 +2,17 @@ from typing import Dict
 from langchain.chat_models import init_chat_model
 from app.state import State
 
+_llm = None
+
+
+def _get_llm():
+    global _llm
+    if _llm is None:
+        _llm = init_chat_model("groq:llama-3.3-70b-versatile")
+    return _llm
+
 
 def aggregator_agent(state: State) -> Dict:
-    llm = init_chat_model("groq:llama-3.3-70b-versatile")
     """
     Aggregator Agent:
     - Collects outputs from all four department agents
@@ -64,9 +72,9 @@ Final Decision:
 <the recommended course of action>
 """
 
-    response = llm.invoke(prompt)
+    response = _get_llm().invoke(prompt)
 
     return {
         "final_output": response.content,
-        "messages": state["messages"] + [response],
+        "messages": state.get("messages", []) + [response],
     }
