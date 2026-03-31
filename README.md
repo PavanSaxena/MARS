@@ -138,15 +138,25 @@ Submit a strategic query to the multi-agent system.
 
 **Request body:**
 ```json
-{
-  "query": "Should we invest in an AI-driven supply chain initiative this quarter?",
-  "thread_id": "session-001"
-}
+curl -s -X POST http://127.0.0.1:8000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Should we invest in an AI-driven supply chain optimization initiative this quarter?", "thread_id": "test-1"}' | jq
 ```
 
 **Response:**
 ```json
 {
-  "result": "Key Insights:\n...\n\nConflicts:\n...\n\nFinal Decision:\n..."
+  "key_insights": [
+    "The Finance department recommends caution and a thorough analysis of ROI, implementation costs, and feasibility before investing in an AI-driven supply chain optimization initiative.",
+    "The R&D department advises against investment at this time due to uncertainty in technical feasibility, innovation potential, and technology risks.",
+    "Lack of relevant case evidence and specific data hinders decision-making across departments.",
+    "The Legal and Operations departments did not provide input, which may impact the completeness of the assessment."
+  ],
+  "conflicts": [
+    "None detected, as there is no direct contradiction between the Finance and R&D departments' recommendations. The Finance department suggests a cautious approach with further analysis, while the R&D department recommends not investing at this time."
+  ],
+  "final_decision": {
+    "decision": "Given the cautious recommendation from the Finance department and the R&D department's advice against investment, coupled with the absence of input from Legal and Operations, the recommended course of action is to postpone the investment decision in the AI-driven supply chain optimization initiative until further analysis and assessments can be conducted. This includes gathering more specific data on potential ROI, implementation costs, technical feasibility, and obtaining input from the Legal and Operations departments to ensure a comprehensive understanding of the initiative's implications."
+  }
 }
 ```
