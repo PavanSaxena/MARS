@@ -59,7 +59,7 @@ def index_cases():
         metadatas=metadatas,
     )
 
-    print(f"✅ Indexed {len(ids)} cases into ChromaDB successfully!")
+    print(f"Indexed {len(ids)} cases into ChromaDB successfully!")
 
 
 if __name__ == "__main__":
