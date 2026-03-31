@@ -23,7 +23,7 @@ def index_cases():
     ids, documents, metadatas, embeddings = [], [], [], []
 
     for case in cases:
-        case_id = case["case_id"]
+        case_id = str(case["case_id"])
 
         doc = (
             f"Decision Title: {case['decision_title']}\n"
