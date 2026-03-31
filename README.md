@@ -51,38 +51,38 @@ The Aggregator then synthesises all four outputs and resolves conflicts with the
 ├── pyproject.toml
 ├── requirements.txt
 ├── .env                             # GROQ_API_KEY, SUPABASE_URL, SUPABASE_KEY
+├── chroma_db                        # Stores case based embeddings
 │
-├── app/
-│   ├── state.py                     # Shared LangGraph State (TypedDict)
-│   │
-│   ├── agents/
-│   │   ├── master_agent.py          # Graph builder + run_graph()
-│   │   ├── finance_agent.py
-│   │   ├── rd_agent.py
-│   │   ├── legal_agent.py
-│   │   └── operations_agent.py
-│   │
-│   ├── reasoning/
-│   │   ├── aggregator.py            # Conflict-resolving aggregator node
-│   │   ├── confidence.py            # Weighted confidence scorer
-│   │   ├── similarity.py            # Average vector similarity
-│   │   ├── outcome_analysis.py      # Historical success rate
-│   │   └── explainability.py        # Human-readable explanation generator
-│   │
-│   ├── services/
-│   │   └── case_retrieval_service.py  # get_similar_cases() + CaseRetrievalService
-│   │
-│   ├── storage/
-│   │   └── chroma_store/
-│   │       ├── chroma_client.py     # get_collection()
-│   │       ├── embedder.py          # get_embedding()
-│   │       ├── retriever.py         # retrieve_cases()
-│   │       └── index_cases.py       # One-time Supabase → ChromaDB indexing script
-│   │
-│   └── api/
-│       └── routes.py                # POST /api/query
-└── tests/
-    └── tests.py
+└── app/
+    ├── state.py                     # Shared LangGraph State (TypedDict)
+    │
+    ├── agents/
+    │   ├── master_agent.py          # Graph builder + run_graph()
+    │   ├── finance_agent.py
+    │   ├── rd_agent.py
+    │   ├── legal_agent.py
+    │   └── operations_agent.py
+    │
+    ├── reasoning/
+    │   ├── aggregator.py            # Conflict-resolving aggregator node
+    │   ├── confidence.py            # Weighted confidence scorer
+    │   ├── similarity.py            # Average vector similarity
+    │   ├── outcome_analysis.py      # Historical success rate
+    │   └── explainability.py        # Human-readable explanation generator
+    │
+    ├── services/
+    │   └── case_retrieval_service.py  # get_similar_cases() + CaseRetrievalService
+    │
+    ├── storage/
+    │   └── chroma_store/
+    │       ├── chroma_client.py     # get_collection()
+    │       ├── embedder.py          # get_embedding()
+    │       ├── retriever.py         # retrieve_cases()
+    │       └── index_cases.py       # One-time Supabase → ChromaDB indexing script
+    │
+    └── api/
+        └── routes.py                # POST /api/query
+
 ```
 
 ---
@@ -108,7 +108,13 @@ TAVILY_API_KEY=your_tavily_api_key   # optional, used by master agent search too
 
 ### 3. Index cases into ChromaDB
 
-This only needs to be run once (or whenever your Supabase data changes):
+Open new Terminal and run the ChromaDB instance:
+
+```bash
+chroma run --path ./chroma_db --port 8001
+```
+
+Then run case base indexers (this only needs to be run once or whenever your Supabase data changes):
 
 ```bash
 python -m app.storage.index_cases
@@ -143,12 +149,4 @@ Submit a strategic query to the multi-agent system.
 {
   "result": "Key Insights:\n...\n\nConflicts:\n...\n\nFinal Decision:\n..."
 }
-```
-
----
-
-## Running Tests
-
-```bash
-pytest tests/tests.py -v
 ```
