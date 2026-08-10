@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+openai
+pandas
+numpy
+pydantic
+pymupdf
+rapidfuzz
+python-dotenv
+aiofiles
+httpx
+python-multipart
+langsmith
