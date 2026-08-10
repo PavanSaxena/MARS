@@ -10,10 +10,9 @@ class QueryRequest(BaseModel):
 
 class FinalDecision(BaseModel):
     decision: str
-    # risk_level: str | None = None
-    # roi: str | None = None
-    # notes: str | None = None
-
+    risk_level: str | None = None
+    roi: str | None = None
+    notes: str | None = None
 
 class QueryResponse(BaseModel):
     key_insights: list[str]
