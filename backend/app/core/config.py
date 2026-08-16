@@ -41,11 +41,6 @@ class Settings(BaseSettings):
         "groq:openai/gpt-oss-120b",
         "groq:openai/gpt-oss-20b",
         "groq:qwen/qwen3.6-27b",
-        "openai:gpt-5.6-terra",
-        "openai:gpt-5.6-sol",
-        "openai:gpt-5.6-luna",
-        "anthropic:claude-sonnet-5",
-        "anthropic:claude-opus-5",
     ]
 
     # Supabase (source data + vector store via pgvector)
