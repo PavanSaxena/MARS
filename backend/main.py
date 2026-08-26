@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.agents.master_agent import run_graph, save_graph_visualization
 from app.api.routes import router
+from app.api.openai_compat import router as openai_router
 from app.core.config import settings
 
 app = FastAPI(
@@ -20,6 +21,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(openai_router)
 
 
 @app.get("/")
