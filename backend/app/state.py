@@ -6,6 +6,7 @@ from langgraph.graph.message import add_messages
 class State(TypedDict):
     messages: Annotated[list, add_messages]
     model: Optional[str]  # "<provider>:<model>" — see app.core.config.settings.AVAILABLE_MODELS
+    route: Optional[str]  # "pipeline" | "chat" — set by app.agents.router.classify_intent
     finance_output: Optional[dict]
     rd_output: Optional[dict]
     legal_output: Optional[dict]
