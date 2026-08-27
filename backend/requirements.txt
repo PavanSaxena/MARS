@@ -1,0 +1,29 @@
+fastapi
+uvicorn[standard]
+# Embeddings
+sentence-transformers
+torch
+# Supabase database (also used as the vector store via pgvector)
+supabase
+# Data validation
+pydantic
+pydantic-settings
+# Environment variables
+python-dotenv
+# HTTP requests (used internally by some services)
+requests
+# Optional but useful
+numpy
+scikit-learn
+# Testing
+pytest
+#ipython
+ipython
+#Agent framework
+langgraph
+langchain
+langchain-core
+langchain_tavily
+langchain-groq
+langchain-openai
+langchain-anthropic
