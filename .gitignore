@@ -18,3 +18,5 @@ graph.png
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+
+.webui_secret_key
