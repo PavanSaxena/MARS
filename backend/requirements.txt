@@ -27,4 +27,3 @@ langchain_tavily
 langchain-groq
 langchain-openai
 langchain-anthropic
-open-webui
