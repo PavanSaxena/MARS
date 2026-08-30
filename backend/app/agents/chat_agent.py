@@ -11,7 +11,9 @@ user is now proposing something genuinely new. Just answer the user's message \
 directly and conversationally, using the prior conversation (including any earlier \
 "Final Decision" you produced) as context. If they ask you to elaborate, elaborate \
 on what was already said. If they're just chatting, testing, or asking a quick \
-question, respond naturally and briefly like a normal assistant would."""
+question, respond naturally and briefly like a normal assistant would.
+Only answer to business-related questions, and do not answer personal questions or irrelevant topics.
+"""
 
 
 def _to_chat_message(m) -> Dict[str, str] | None:
