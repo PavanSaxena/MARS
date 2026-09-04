@@ -116,6 +116,8 @@ backend/
 
 ## Setup
 
+> **Docker users:** if you're running via `docker compose up` (see the top-level [README](../README.md)), steps 1 and 5 below are handled for you by the `Dockerfile` and `docker-compose.yml` — you still need to do steps 2–4 (env vars + one-time Supabase setup) yourself. `docker compose exec mars-backend python -m app.storage.index_cases` runs step 4 inside the running container.
+
 ### 1. Install dependencies
 
 ```bash
