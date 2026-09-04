@@ -27,3 +27,6 @@ langchain_tavily
 langchain-groq
 langchain-openai
 langchain-anthropic
+# MCP tool layer (app/mcp) — real Model Context Protocol server + client
+mcp
+langchain-mcp-adapters

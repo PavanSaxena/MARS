@@ -7,4 +7,3 @@ venv
 .git
 .pytest_cache
 graph.png
-uv.lock
