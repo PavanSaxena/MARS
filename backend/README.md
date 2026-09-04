@@ -177,7 +177,7 @@ The API is available at `http://localhost:8000`.
 
 ## Model Switching
 
-Every LLM call (all 4 department agents + the aggregator) goes through `app.agents.common.get_llm(model_id)`, so which model is used is a per-request choice, not a hardcoded one. Model ids are `"<provider>:<model>"` strings — `groq:openai/gpt-oss-120b`, `openai:gpt-5.6-terra`, `anthropic:claude-sonnet-5`, etc. — matching LangChain's `init_chat_model()` convention. The full list lives in `settings.AVAILABLE_MODELS` (`app/core/config.py`); add/remove a model by editing that one list.
+Every LLM call (all 4 department agents + the aggregator) goes through `app.agents.common.get_llm(model_id)`, so which model is used is a per-request choice, not a hardcoded one. Model ids are `"<provider>:<model>"` strings, matching LangChain's `init_chat_model()` convention — e.g. `openai:gpt-5.6-terra` or `anthropic:claude-sonnet-5` once those providers are added below. Only models actually listed in `settings.AVAILABLE_MODELS` (`app/core/config.py`) are usable — right now that's the three Groq models shown there; add an OpenAI/Anthropic entry to that list (and set the matching API key) to enable it.
 
 Each provider needs its own key in `.env` (`GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) — only set the ones for models you actually want available. `GET /api/models` tells you which configured models are actually usable right now vs. blocked on a missing key.
 
@@ -190,7 +190,7 @@ Each provider needs its own key in `.env` (`GROQ_API_KEY`, `OPENAI_API_KEY`, `AN
 ```bash
 curl -s -X POST http://127.0.0.1:8000/api/query \
   -H "Content-Type: application/json" \
-  -d '{"query": "Should we invest in X?", "thread_id": "t1", "model": "anthropic:claude-sonnet-5"}' | jq
+  -d '{"query": "Should we invest in X?", "thread_id": "t1", "model": "groq:openai/gpt-oss-20b"}' | jq
 ```
 
 ## API Usage
