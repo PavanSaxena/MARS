@@ -24,21 +24,21 @@ def rd_agent(state: State) -> Dict[str, Any]:
     if not messages:
         return empty_agent_result("rd_output", messages)
 
-    cases, case_text, warnings = retrieve_case_context(query=query, domain="rd", k=5)
+    cases, case_text, warnings = retrieve_case_context(query=query, domain="rd")
     tools = get_tool_objects_for_agent("rd_agent")
 
     prompt = build_json_prompt(
         agent_title="R&D Department",
         role_points=[
-            "Evaluate technical feasibility of the proposed initiative",
-            "Assess innovation potential, research timeline, and delivery risk",
-            "Use past similar R&D cases to guide decisions",
+            "Evaluate technical feasibility based strictly on retrieved historical evidence",
+            "Assess innovation potential and delivery risk using past case precedents",
+            "Refuse to fabricate or speculate if no historical cases exist",
         ],
         rules=[
-            "Assess technical complexity and readiness level (TRL)",
-            "Estimate time-to-value and resource investment",
-            "Highlight technology risks and dependencies",
-            "Confidence must be a number in [0, 1]",
+            "Ground all R&D and technical analysis strictly in the retrieved historical cases",
+            "Do NOT fabricate technical readiness levels (TRL), firmware schedules, or specs without dataset evidence",
+            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
+            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
         ],
         query=query,
         case_text=case_text,
@@ -49,7 +49,7 @@ def rd_agent(state: State) -> Dict[str, Any]:
         get_llm(state.get("model")), prompt, tools, agent_name="rd_agent"
     )
     parsed_output = parse_rd_output(content)
-    parsed_output.update(build_case_evidence(cases, tools_used))
+    parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
     if warnings:
         parsed_output["warnings"] = warnings
 

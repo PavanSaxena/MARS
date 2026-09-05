@@ -77,9 +77,12 @@ def build_graph():
 graph = build_graph()
 
 
-def run_graph(user_input: str, thread_id: str = "default", model: str | None = None) -> str:
+from app.core.errors import is_rate_limit_error, format_rate_limit_error
+
+
+def run_graph(user_input: str, thread_id: str = "default", model: str | None = None) -> tuple[str, dict]:
     """
-    Execute the graph for one user query and return the final decision string.
+    Execute the graph for one user query and return (final_decision_str, retrieved_cases_dict).
 
     `model` is optional and, when given, is written into the thread's
     checkpointed state as "<provider>:<model>" (see settings.AVAILABLE_MODELS).
@@ -93,8 +96,15 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
         initial_state["model"] = model
 
     config = {"configurable": {"thread_id": thread_id}}
-    final_state = graph.invoke(initial_state, config=config)
-    return final_state.get("final_output", "No output generated.")
+    try:
+        final_state = graph.invoke(initial_state, config=config)
+        output_text = final_state.get("final_output", "No output generated.")
+        retrieved_cases = final_state.get("retrieved_cases") or {}
+        return output_text, retrieved_cases
+    except Exception as exc:
+        if is_rate_limit_error(exc):
+            return format_rate_limit_error(exc, model_name=model), {}
+        raise exc
 
 
 def get_thread_model(thread_id: str) -> str:
