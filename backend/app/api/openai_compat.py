@@ -185,10 +185,25 @@ def _format_evidence_block(retrieved_cases: dict) -> str:
             sim_str = f"{sim:.2f}" if isinstance(sim, (int, float)) else "—"
             risk = c.get("risk_level", "")
             outcome = c.get("outcome", "")
-            doc_preview = (c.get("document") or "")[:300].replace("\n", " ")
+            doc = (c.get("document") or "").strip()
+            if doc:
+                formatted_lines = []
+                for line in doc.split("\n"):
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    if ":" in line_str:
+                        key, val = line_str.split(":", 1)
+                        formatted_lines.append(f"  > **{key.strip()}:**{val}")
+                    else:
+                        formatted_lines.append(f"  > {line_str}")
+                formatted_doc = "\n".join(formatted_lines)
+            else:
+                formatted_doc = "  > *No details provided.*"
+
             lines.append(
                 f"- **Case {cid}** ({quarter}) | Similarity: {sim_str} | Risk: {risk} | Outcome: {outcome}\n"
-                f"  > {doc_preview}…"
+                f"{formatted_doc}\n"
             )
     return "\n".join(lines)
 
