@@ -76,6 +76,11 @@ MARS/Dataset/
     - `decision_description` must be 2–4 complete sentences detailing concrete corporate parameters: product lines, assembly partners (Foxconn, Pegatron, Luxshare, TSMC, etc.), volume shifts, channels, and numerical goals.
     - `decision_rationale` must be 2–3 complete sentences explaining the underlying strategic economics, gross margin protection, risk mitigation, and trade-offs.
     - `quantitative_signals` must provide verified metrics, units, and dates from the official disclosures.
+11. **Cross-Department Influence & Inter-Departmental Friction**:
+    - Decisions never occur in departmental silos. A manufacturing shift by Operations affects Finance's CapEx and Legal's labor compliance; an App Store policy change by Legal directly impacts Services revenue and R&D engineering roadmaps.
+    - Every decision must explicitly document its cross-functional ripple effects:
+      - `cross_dept_impact`: Semicolon-delimited list of secondary departments affected (e.g. `Finance;Legal`, `Operations;R&D`).
+      - `conflicting_perspectives`: A detailed, multi-sentence account of inter-departmental objections, financial/operational friction, and how executive management balanced competing departmental objectives.
 
 ---
 
@@ -135,6 +140,8 @@ A single quarterly disclosure report contains macro-level sections (MD&A, Notes 
 | `department` | String | `Operations` \| `Finance` \| `R&D` \| `Legal` | Department responsible. |
 | `department_basis` | String | `reported` \| `inferred` | `reported` if stated; `inferred` if functional. |
 | `tags` | String/JSON | Array or set format | Categorization tags. |
+| `cross_dept_impact` | String | Semicolon-delimited departments (e.g., `Finance;Legal`) | Secondary departments impacted by the decision. |
+| `conflicting_perspectives` | String | Multi-sentence narrative (> 100 chars) | Specific historical account of inter-departmental objections, trade-offs, and executive compromises. |
 
 ### 4.2 Outcome Schema (`outcomes_<YYYY>_<qx>.csv`)
 
@@ -203,6 +210,14 @@ def validate_quarter_dataset(dec_path, out_path):
     assert (dec['decision_rationale'].str.len() >= 50).all(), "Found overly brief decision_rationale (< 50 chars)!"
     assert dec['decision_description'].str.len().mean() >= 130, f"Mean decision_description length ({dec['decision_description'].str.len().mean():.1f}) below standard 130 chars!"
 
+    # 9. Cross-Department Influence & Managerial Friction Check
+    if 'cross_dept_impact' in dec.columns:
+        assert dec['cross_dept_impact'].notnull().all(), "Null values detected in cross_dept_impact!"
+        assert dec['conflicting_perspectives'].notnull().all(), "Null values detected in conflicting_perspectives!"
+        assert dec['conflicting_perspectives'].nunique() == len(dec), "Duplicate conflicting_perspectives detected!"
+        assert (dec['conflicting_perspectives'].str.len() >= 100).all(), "Overly brief conflicting_perspectives (< 100 chars)!"
+        assert dec['conflicting_perspectives'].str.len().mean() >= 200, f"Mean conflicting_perspectives length ({dec['conflicting_perspectives'].str.len().mean():.1f}) below standard 200 chars!"
+
     print("\nALL QUALITY GATES PASSED SUCCESSFULLY!")
 ```
 
@@ -215,9 +230,11 @@ When assigned a target quarter (e.g. `2023_Q4`):
 2. **Decompose into 160 Cases**: Extract ~35–45 granular decision cases across Operations, Finance, R&D, and Legal from `decisions_all_backup.csv` or primary documents.
 3. **Research Subsequent Reality (Filings + Internet Search)**: Search subsequent filings across any year/quarter AND look up the internet (industry market share trackers, regulatory agency rulings, court dockets, tech press investigations) to discover and confirm the real-world operational, financial, technical, or legal result of each decision.
 4. **Calibrate Outcomes**: Assign ~24%–36% failures across each department grounded in real reported headwinds, category contractions, or regulatory sanctions, incorporating natural variance.
-5. **Save Outputs in Standard Folders**:
+5. **Document Cross-Department Influence**: Detail secondary affected departments (`cross_dept_impact`) and articulate the authentic inter-departmental tensions and trade-offs (`conflicting_perspectives`).
+6. **Save Outputs in Standard Folders**:
    - `MARS/Dataset/Decisions/decisions_<YYYY>_<qx>.csv`
    - `MARS/Dataset/Outcome/outcomes_<YYYY>_<qx>.csv`
-6. **Update Cumulative Master Files**:
+7. **Update Cumulative Master Files**:
    - Concatenate all completed quarter files into `Decisions/decisions.csv` and `Outcome/outcomes.csv` (and mirror at root `decisions.csv` and `outcomes.csv`).
-7. **Validate**: Run the quality gate test script to guarantee 100% compliance.
+8. **Validate**: Run the quality gate test script to guarantee 100% compliance.
+

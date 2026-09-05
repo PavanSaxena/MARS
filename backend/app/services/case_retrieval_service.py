@@ -41,16 +41,17 @@ def _calculate_lexical_score(query_tokens: Set[str], row: Dict[str, Any]) -> flo
     title_tokens = _tokenize(str(row.get("decision_title", "")))
     trigger_tokens = _tokenize(str(row.get("trigger", "")))
     desc_tokens = _tokenize(str(row.get("decision_description", "")))
-    reasoning_tokens = _tokenize(str(row.get("reasoning_summary", "")))
+    reasoning_tokens = _tokenize(str(row.get("reasoning_summary", "") or row.get("decision_rationale", "")))
+    conflict_tokens = _tokenize(str(row.get("conflicting_perspectives", "")))
 
-    all_case_tokens = title_tokens | trigger_tokens | desc_tokens | reasoning_tokens
+    all_case_tokens = title_tokens | trigger_tokens | desc_tokens | reasoning_tokens | conflict_tokens
     if not all_case_tokens:
         return 0.0
 
     # Key fields matching
     title_matches = len(query_tokens & title_tokens)
     trigger_matches = len(query_tokens & trigger_tokens)
-    body_matches = len(query_tokens & (desc_tokens | reasoning_tokens))
+    body_matches = len(query_tokens & (desc_tokens | reasoning_tokens | conflict_tokens))
 
     # Weighted match count
     weighted_matches = (title_matches * 2.0) + (trigger_matches * 1.5) + (body_matches * 1.0)
@@ -220,6 +221,8 @@ def get_similar_cases(
         signals = row.get("quantitative_signals", "")
         risk = row.get("risk_level", "")
         outcome = row.get("outcome_summary") or row.get("observation_excerpt", "")
+        cross_dept = row.get("cross_dept_impact", "")
+        conflicts = row.get("conflicting_perspectives", "")
 
         doc_parts = [f"Decision Title: {row.get('decision_title', '')}"]
         if trigger:
@@ -228,6 +231,10 @@ def get_similar_cases(
             doc_parts.append(f"Decision Description: {desc}")
         if rationale:
             doc_parts.append(f"Reasoning Summary: {rationale}")
+        if cross_dept and str(cross_dept).strip() not in ("", "None", "nan"):
+            doc_parts.append(f"Cross-Department Impact: {cross_dept}")
+        if conflicts and str(conflicts).strip() not in ("", "None", "nan"):
+            doc_parts.append(f"Conflicting Perspectives: {conflicts}")
         if signals and str(signals).strip() not in ("", "[]", "{}", "None", "nan"):
             doc_parts.append(f"Quantitative Signals: {signals}")
         if risk:
@@ -243,6 +250,8 @@ def get_similar_cases(
                 "case_id": c["case_id"],
                 "quarter": c["quarter"],
                 "department": row.get("department", ""),
+                "cross_dept_impact": cross_dept,
+                "conflicting_perspectives": conflicts,
                 "risk_level": c["risk_level"],
                 "outcome": c["outcome"],
                 "similarity": sim_val,

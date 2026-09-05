@@ -86,6 +86,7 @@ CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
    - Do NOT invent recommendations for ungrounded departments.
 4. IF DEPARTMENTS HAVE VALID GROUNDED EVIDENCE:
    - Identify key recommendations, agreements, and conflicts supported by their cited historical cases.
+   - Under "Conflicts": Explicitly synthesize any cross-department tensions, conflicting perspectives, or trade-offs (e.g. Finance gross margin/CapEx concerns vs. Operations supply/backlog targets, Legal regulatory/compliance constraints vs. R&D engineering velocity) evidenced in the retrieved cases, and outline how management should balance these competing priorities.
    - Weight higher-confidence, evidence-backed departments more heavily.
    - Produce a final actionable plan directly referencing the historical evidence.
 
@@ -94,7 +95,7 @@ Key Insights:
 <bullet points of the findings, or note the complete absence of historical evidence>
 
 Conflicts:
-<any conflicts between departments, or "None detected">
+<synthesis of inter-departmental tensions, conflicting perspectives, and trade-offs, or "None detected">
 
 Final Decision:
 <the grounded recommendation, or explicit refusal if no historical evidence exists>
