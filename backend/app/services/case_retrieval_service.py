@@ -214,14 +214,28 @@ def get_similar_cases(
         sim_val = c["vector_sim"]
         distance = max(0.0, 1.0 - sim_val)
 
-        document = (
-            f"Decision Title: {row.get('decision_title', '')}\n"
-            f"Trigger: {row.get('trigger', '')}\n"
-            f"Decision Description: {row.get('decision_description', '')}\n"
-            f"Reasoning Summary: {row.get('reasoning_summary', '')}\n"
-            f"Risk Level: {row.get('risk_level', '')}\n"
-            f"Outcome Summary: {row.get('outcome_summary', '')}"
-        )
+        desc = row.get("decision_description") or row.get("description", "")
+        rationale = row.get("reasoning_summary") or row.get("decision_rationale", "")
+        trigger = row.get("trigger", "")
+        signals = row.get("quantitative_signals", "")
+        risk = row.get("risk_level", "")
+        outcome = row.get("outcome_summary") or row.get("observation_excerpt", "")
+
+        doc_parts = [f"Decision Title: {row.get('decision_title', '')}"]
+        if trigger:
+            doc_parts.append(f"Trigger: {trigger}")
+        if desc:
+            doc_parts.append(f"Decision Description: {desc}")
+        if rationale:
+            doc_parts.append(f"Reasoning Summary: {rationale}")
+        if signals and str(signals).strip() not in ("", "[]", "{}", "None", "nan"):
+            doc_parts.append(f"Quantitative Signals: {signals}")
+        if risk:
+            doc_parts.append(f"Risk Level: {risk}")
+        if outcome:
+            doc_parts.append(f"Outcome Summary: {outcome}")
+
+        document = "\n".join(doc_parts)
 
         cases.append({
             "document": document,
