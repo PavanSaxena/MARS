@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     # Optional search tool
     TAVILY_API_KEY: Optional[str] = None
 
+    # Retrieval & Contextual Reranking
+    RETRIEVAL_CANDIDATE_COUNT: int = 25  # Top 20-30 candidates fetched from vector search
+    RETRIEVAL_MIN_CASES: int = 3         # Minimum number of target cases to return (if relevant)
+    RETRIEVAL_MAX_CASES: int = 10        # Maximum number of final diverse cases to return
+    RETRIEVAL_SIMILARITY_FLOOR: float = 0.25  # Soft floor to eliminate zero/unrelated noise
+    RETRIEVAL_MMR_LAMBDA: float = 0.65   # Balance between relevance (1.0) and diversity (0.0)
+
     # API
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000

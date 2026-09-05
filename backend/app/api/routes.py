@@ -34,6 +34,10 @@ class QueryResponse(BaseModel):
     conflicts: list[str]
     final_decision: FinalDecision
     explainability: str | None = None
+    # Per-department list of the historical cases used to ground each agent's
+    # reasoning. Keys are department names ("Finance", "R&D", "Legal",
+    # "Operations"); each value is a list of slim case dicts.
+    retrieved_cases: dict | None = None
 
 _SECTION_NAMES = ["Key Insights", "Conflicts", "Final Decision", "Explainability"]
 # Header lines are matched leniently: case-insensitive, optional markdown
@@ -124,6 +128,9 @@ def thread_model(thread_id: str):
     return {"thread_id": thread_id, "model": get_thread_model(thread_id)}
 
 
+from app.core.errors import is_rate_limit_error, format_rate_limit_error
+
+
 @router.post("/query", response_model=QueryResponse)
 def query_system(request: QueryRequest):
     if not request.query.strip():
@@ -142,8 +149,17 @@ def query_system(request: QueryRequest):
                 detail=f"Model '{request.model}' requires a {provider.upper()}_API_KEY to be set in .env.",
             )
 
-    raw_result = run_graph(user_input=request.query, thread_id=request.thread_id, model=request.model)
+    try:
+        raw_result, retrieved_cases = run_graph(user_input=request.query, thread_id=request.thread_id, model=request.model)
+    except Exception as exc:
+        if is_rate_limit_error(exc):
+            raw_result = format_rate_limit_error(exc, model_name=request.model)
+            retrieved_cases = {}
+        else:
+            raise exc
 
     structured = parse_result(raw_result)
+    structured["retrieved_cases"] = retrieved_cases or None
 
     return structured
+

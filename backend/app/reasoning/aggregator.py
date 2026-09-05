@@ -65,36 +65,39 @@ def aggregator_agent(state: State) -> Dict:
 You are a Strategic Decision-Making AI.
 
 You have received assessments from four department agents. Your task is to synthesize
-them into a single, coherent, actionable final plan.
+them into a coherent, evidence-grounded strategic summary and decision.
 
 Departments Ranked by Reported Confidence (highest first):
 {ranked_summary}
 
-Note: each department also has a "case-based confidence" score intended to combine
-similarity, recency, and historical success — this metric is still under research and
-is currently a placeholder (not meaningful yet). Base your weighting on "Reported
-Confidence" for now.
-
+Department Assessments:
 {assessments_block}
 
-Instructions:
-1. Identify key recommendations and agreements across departments
-2. Detect any conflicts between departments
-3. Weight each department's input using its reported confidence above.
-   If confidence levels are close or a genuine conflict remains, break the
-   tie using this priority order: Legal compliance > Financial feasibility >
-   Operational practicality > R&D innovation potential
-4. Produce a final actionable plan
+CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
+1. You must base your synthesis and decision STRICTLY on the evidence-backed findings reported by the department agents.
+2. IF ALL DEPARTMENTS REPORT "No historical evidences/decisions found." (or have 0.0 confidence / no retrieved cases):
+   - You MUST NOT fabricate, invent, or hallucinate a speculative business strategy, rollout plan, budget, or timeline.
+   - Under "Key Insights": State clearly that no historical cases or precedents were found in the dataset across any department.
+   - Under "Conflicts": State "None (no historical data to evaluate)".
+   - Under "Final Decision": State explicitly: "No evidence-based decision can be recommended. The dataset does not contain historical precedents or decisions for this query. The system refuses to provide ungrounded or hallucinated recommendations without supporting empirical evidence."
+3. IF ONLY SOME DEPARTMENTS HAVE EVIDENCE:
+   - Base your recommendations ONLY on the departments that provided grounded evidence from historical cases.
+   - Explicitly note which departments lacked historical precedents.
+   - Do NOT invent recommendations for ungrounded departments.
+4. IF DEPARTMENTS HAVE VALID GROUNDED EVIDENCE:
+   - Identify key recommendations, agreements, and conflicts supported by their cited historical cases.
+   - Weight higher-confidence, evidence-backed departments more heavily.
+   - Produce a final actionable plan directly referencing the historical evidence.
 
 Output Format (STRICT):
 Key Insights:
-<bullet points of the most important findings>
+<bullet points of the findings, or note the complete absence of historical evidence>
 
 Conflicts:
 <any conflicts between departments, or "None detected">
 
 Final Decision:
-<the recommended course of action>
+<the grounded recommendation, or explicit refusal if no historical evidence exists>
 """
 
     response = get_llm(state.get("model")).invoke(prompt)
@@ -115,7 +118,15 @@ Final Decision:
 
     final_output = f"{response.content}{explainability_block}"
 
+    # Collect retrieved cases per department so the API can surface them.
+    retrieved_cases_by_dept: dict = {}
+    for name, output in departments:
+        cases = (output or {}).get("retrieved_cases")
+        if cases:
+            retrieved_cases_by_dept[name] = cases
+
     return {
         "final_output": final_output,
+        "retrieved_cases": retrieved_cases_by_dept,
         "messages": state.get("messages", []) + [response],
     }
