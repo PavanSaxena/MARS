@@ -33,7 +33,7 @@ User Query
 
 Each department agent:
 1. Embeds the query with `all-MiniLM-L6-v2`
-2. Retrieves the top-5 most similar historical cases directly from Supabase via the `match_decision_cases` Postgres function (pgvector cosine similarity, filtered by department)
+2. Retrieves the top-5 most similar historical decisions directly from Supabase via the `match_decisions` Postgres function (pgvector cosine similarity, filtered by department), each already joined with its recorded outcome
 3. Sends the query + cases to `llama-3.3-70b-versatile` (via Groq) with its two department-specific tools bound (see **Tooling Layer** below). The model decides whether it needs a tool; if it calls one, the tool executes and its result is fed back for a second, final LLM call
 4. Returns `{response, reasoning, confidence, num_cases_retrieved, avg_similarity, historical_success_rate, case_based_confidence, tools_used, explanation}` into the shared LangGraph state
 
@@ -45,12 +45,12 @@ Department tools are served over a real **Model Context Protocol** server (`app/
 
 | Agent | Tools | Source |
 |---|---|---|
-| Finance | `FinancialDataTool`, `MarketAnalysisTool` | Supabase `decision_cases` aggregate / live Tavily web search |
-| R&D | `ResearchDatabaseTool`, `ExperimentTrackerTool` | Supabase `decision_cases` aggregate |
-| Legal | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decision_cases` aggregate |
-| Operations | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decision_cases` aggregate / live Tavily web search |
+| Finance | `FinancialDataTool`, `MarketAnalysisTool` | Supabase `decisions`/`outcomes` aggregate / live Tavily web search |
+| R&D | `ResearchDatabaseTool`, `ExperimentTrackerTool` | Supabase `decisions`/`outcomes` aggregate |
+| Legal | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decisions`/`outcomes` aggregate |
+| Operations | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decisions`/`outcomes` aggregate / live Tavily web search |
 
-- **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) query `decision_cases` directly for a department-level snapshot (risk-level breakdown, most recent cases) — a plain filtered query, separate from the pgvector similarity search used for case retrieval.
+- **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) query `decisions` joined with `outcomes` for a department-level snapshot (action-type breakdown, most recent cases and what happened to them) — a plain filtered query, separate from the pgvector similarity search used for case retrieval.
 - **External tools** (`MarketAnalysisTool`, `LegalDatabaseTool`, `SupplyChainAnalyzerTool`) run a live Tavily web search. If `TAVILY_API_KEY` isn't set, they return a clear "unavailable" message instead of failing.
 
 The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`, where the bound tools now come from `app/tools/tool_registry.py:get_tool_objects_for_agent`, which in turn calls `app/mcp/client.py:get_langchain_tools_sync` and filters to that agent's allowlist. If the LLM calls one, `app/tools/tool_executor.py:execute_tool_call` re-checks the same allowlist, then forwards the call to `app/mcp/client.py:call_tool_sync` — a real MCP `CallToolRequest` round trip to the server subprocess — and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
@@ -61,7 +61,7 @@ For manual inspection, the MCP server can be run standalone: `python -m app.mcp.
 
 The Aggregator ranks departments by their reported confidence (highest first), uses a fixed priority order (Legal > Finance > Operations > R&D) only as a tiebreaker, and appends a per-department explainability trail to the final output.
 
-**There is no separate vector database.** Case data and its embeddings both live in Supabase — cases are stored in the `decision_cases` table (Postgres), and a `vector` column on that same table (via the `pgvector` extension) is queried directly for similarity search. This removes the two-database sync problem that existed with ChromaDB.
+**There is no separate vector database.** Decision data and its embeddings both live in Supabase — decisions are stored in the `decisions` table (Postgres), and a `vector` column on that same table (via the `pgvector` extension) is queried directly for similarity search. Outcomes live in a separate `outcomes` table (one row per `decisions.case_id`), joined in server-side by the `match_decisions` RPC.
 
 ---
 
@@ -75,8 +75,7 @@ backend/
 ├── .env                              # not committed — see .env.example
 ├── .env.example
 ├── sql/
-│   ├── 001_pgvector_setup.sql         # ONE-TIME: run in Supabase's SQL editor
-│   └── 002_bulk_update_embeddings.sql # ONE-TIME: run after 001, backs index_cases.py's batched writes
+│   └── 001_setup.sql              # ONE-TIME: run in Supabase's SQL editor
 │
 └── app/
     ├── state.py                      # Shared LangGraph State (TypedDict)
@@ -104,9 +103,9 @@ backend/
     │   └── case_retrieval_service.py # get_similar_cases() + CaseRetrievalService
     │
     ├── storage/
-    │   ├── embedder.py               # get_embedding()
-    │   ├── retriever.py              # retrieve_cases() — calls match_decision_cases RPC
-    │   └── index_cases.py            # Computes + writes embeddings into Supabase
+    │   ├── embedder.py                    # get_embedding() / get_embeddings()
+    │   ├── retriever.py                   # retrieve_cases() — calls match_decisions RPC
+    │   └── sync_decisions_to_supabase.py  # Imports dataset/ CSVs + writes embeddings into Supabase
     │
     ├── mcp/
     │   ├── server.py                  # Real MCP server (FastMCP) — the 8 tool implementations live here
@@ -124,7 +123,7 @@ backend/
 
 ## Setup
 
-> **Docker users:** if you're running via `docker compose up` (see the top-level [README](../README.md)), steps 1 and 5 below are handled for you by the `Dockerfile` and `docker-compose.yml` — you still need to do steps 2–4 (env vars + one-time Supabase setup) yourself. `docker compose exec mars-backend python -m app.storage.index_cases` runs step 4 inside the running container.
+> **Docker users:** if you're running via `docker compose up` (see the top-level [README](../README.md)), step 1 below is handled for you by the `Dockerfile` — you still need to do steps 2–4 yourself. `docker compose exec mars-backend python -m app.storage.sync_decisions_to_supabase` runs step 4 inside the running container.
 
 ### 1. Install dependencies
 
@@ -154,24 +153,22 @@ All settings are loaded once via `app/core/config.py` — see that file for the 
 
 ### 3. One-time Supabase setup (pgvector)
 
-Open the Supabase SQL editor for your project and run `sql/001_pgvector_setup.sql`, then `sql/002_bulk_update_embeddings.sql`.
+Open the Supabase SQL editor for your project and run `sql/001_setup.sql`. It:
 
-`001_pgvector_setup.sql`:
 - Enables the `pgvector` extension
-- Adds an `embedding vector(384)` column to `decision_cases` (384 = `all-MiniLM-L6-v2`'s output size — if you change embedding models later, update this)
-- Creates an `ivfflat` index for fast approximate nearest-neighbour search
-- Creates the `match_decision_cases` Postgres function that `app/storage/retriever.py` calls via `supabase.rpc(...)`
+- Creates `decisions` (18 columns: title, description, documented action, action type, rationale, quantitative signals, department, tags, cross-department impact, an `embedding vector(384)` column — 384 = `all-MiniLM-L6-v2`'s output size — and more) and `outcomes` (one row per `decisions.case_id`, with `outcome_label`, `observation_date`, and the observed evidence)
+- Creates an `hnsw` index on `decisions.embedding` for fast approximate nearest-neighbour search
+- Creates a trigger enforcing that every outcome's `observation_date` is strictly after its decision's `decision_date`
+- Creates the `match_decisions` Postgres function that `app/storage/retriever.py` calls via `supabase.rpc(...)`, and the `bulk_update_decision_embeddings` / `get_decisions_corpus_summary` helper functions
+- Enables row-level security: anyone can read, only the `service_role` key can write
 
-`002_bulk_update_embeddings.sql`:
-- Creates the `bulk_update_case_embeddings` Postgres function that `app/storage/index_cases.py` calls to write embeddings back in batches. It does a real, set-based `UPDATE` (never an `INSERT`), so a `case_id` that doesn't match an existing row is simply skipped rather than creating a malformed new row.
-
-### 4. Backfill embeddings (only needed once, or when Supabase case rows change)
+### 4. Import the dataset and compute embeddings
 
 ```bash
-python -m app.storage.index_cases
+python -m app.storage.sync_decisions_to_supabase
 ```
 
-This computes an embedding for **every** row currently in `decision_cases` (existing rows and any new ones you've added since the last run) and writes it into the `embedding` column in place, in batches of 100 with progress printed after each batch. There's no trigger or automation — the `001_pgvector_setup.sql` migration only adds the empty `embedding` column, it does not populate it. Re-run this command any time you add or edit case rows in Supabase, otherwise those rows will have `embedding = null` and get silently excluded from `match_decision_cases` results.
+This reads `dataset/Decisions/decisions.csv` and `dataset/Outcome/outcomes.csv`, computes an embedding for every decision, and upserts both tables by `case_id` — all in one pass. Requires `SUPABASE_KEY` to be a service_role key (see step 3's RLS note). Re-run any time the dataset changes.
 
 ### 5. Run the API server
 

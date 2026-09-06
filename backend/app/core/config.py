@@ -46,7 +46,8 @@ class Settings(BaseSettings):
     # Supabase (source data + vector store via pgvector)
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
-    SUPABASE_CASES_TABLE: str = "decision_cases"
+    SUPABASE_DECISIONS_TABLE: str = "decisions"
+    SUPABASE_OUTCOMES_TABLE: str = "outcomes"
 
     # Optional search tool
     TAVILY_API_KEY: Optional[str] = None

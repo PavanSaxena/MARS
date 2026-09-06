@@ -13,61 +13,36 @@ _DOMAIN_MAP = {
 }
 
 
-def retrieve_cases(query: str, k: int = 5, domain: Optional[str] = None) -> List[dict]:
-    """
-    Query Supabase (pgvector) for the k most similar cases via the
-    `match_decision_cases` RPC function.
-
-    Requires the one-time SQL setup in backend/sql/001_pgvector_setup.sql to
-    have been run in Supabase, and backend/app/storage/index_cases.py to have
-    been run at least once to populate the `embedding` column.
-
-    Returns a list of row dicts (case_id, decision_title, ..., similarity).
-    """
-    vector = get_embedding(query)
-    mapped_domain = _DOMAIN_MAP.get(domain.lower(), domain) if domain else None
-
-    supabase = get_supabase_client()
-    response = supabase.rpc(
-        "match_decision_cases",
-        {
-            "query_embedding": vector,
-            "match_count": k,
-            "filter_department": mapped_domain,
-        },
-    ).execute()
-
-    return response.data or []
-
-
-def retrieve_verified_cases(
+def retrieve_cases(
     query: str,
-    as_of_date: Optional[str] = None,
     k: int = 5,
     domain: Optional[str] = None,
+    as_of_date: Optional[str] = None,
 ) -> List[dict]:
     """
-    Query Supabase (pgvector) for the k most similar verified decision cases
-    via the `match_verified_decisions` RPC function.
+    Query Supabase (pgvector) for the k most similar historical decisions to
+    `query`, via the `match_decisions` RPC (backend/sql/001_setup.sql).
 
-    Guarantees:
-      - Uses embeddings generated strictly from decision-time facts (no outcome leakage).
-      - Applies `as_of_date` cutoff so decisions after that date are excluded.
-      - Never returns future outcome fields.
+    Embeds the query with all-MiniLM-L6-v2, optionally filters by
+    department, and optionally excludes decisions made after `as_of_date`.
+    Each returned row already includes its outcome (joined server-side in
+    the RPC), so callers get precedent + what happened next in one call.
+
+    Returns a list of row dicts (case_id, decision_title, ..., similarity),
+    ordered by similarity descending.
     """
     vector = get_embedding(query)
     mapped_domain = _DOMAIN_MAP.get(domain.lower(), domain) if domain else None
 
     supabase = get_supabase_client()
     response = supabase.rpc(
-        "match_verified_decisions",
+        "match_decisions",
         {
             "query_embedding": vector,
-            "as_of_date": as_of_date,
             "match_count": k,
             "filter_department": mapped_domain,
+            "as_of_date": as_of_date,
         },
     ).execute()
 
     return response.data or []
-

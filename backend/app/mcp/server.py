@@ -8,13 +8,14 @@ Protocol server, so agents access them over the same tool-call protocol any
 other MCP client (Claude Desktop, another service, etc.) would use — not
 via a direct import.
 
-Two kinds of tools, same as before:
+Two kinds of tools:
   - "Internal" tools (FinancialDataTool, ResearchDatabaseTool,
     ExperimentTrackerTool, ComplianceCheckerTool, OperationsDashboardTool)
-    pull aggregate stats straight from the `decision_cases` table in
-    Supabase — separate from the pgvector similarity search in
-    app/storage/retriever.py, this is a plain filtered query (risk-level
-    breakdown, most recent cases) for a department.
+    pull an aggregate department snapshot straight from the `decisions` /
+    `outcomes` tables in Supabase — separate from the pgvector similarity
+    search in app/storage/retriever.py, this is a plain filtered query
+    (action-type breakdown, most recent cases + their outcomes) for a
+    department.
   - "External" tools (MarketAnalysisTool, LegalDatabaseTool,
     SupplyChainAnalyzerTool) run a live Tavily web search for information
     that isn't in the case database at all.
@@ -37,38 +38,50 @@ mcp = FastMCP("mars-tools")
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers (identical behavior to the old app.tools.tool_executor)
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 def _department_case_snapshot(department: str, limit: int = 20) -> Dict[str, Any]:
-    """Fetch recent decision_cases rows for a department and summarize them."""
+    """Fetch recent `decisions` rows for a department, joined with their
+    `outcomes`, and summarize them."""
     supabase = get_supabase_client()
-    table = settings.SUPABASE_CASES_TABLE
+    table = settings.SUPABASE_DECISIONS_TABLE  # "decisions"
+    outcomes_table = settings.SUPABASE_OUTCOMES_TABLE  # "outcomes"
 
     rows = (
         supabase.table(table)
-        .select("decision_title, risk_level, outcome_summary, quarter")
+        .select(f"decision_title, action_type, decision_date, {outcomes_table}(outcome_label, observation_excerpt)")
         .eq("department", department)
-        .order("quarter", desc=True)
+        .order("decision_date", desc=True)
         .limit(limit)
         .execute()
         .data
     )
 
-    risk_counts: Dict[str, int] = {}
+    action_counts: Dict[str, int] = {}
     for row in rows:
-        risk = row.get("risk_level") or "Unknown"
-        risk_counts[risk] = risk_counts.get(risk, 0) + 1
+        action = row.get("action_type") or "Unknown"
+        action_counts[action] = action_counts.get(action, 0) + 1
+
+    def _outcome_text(row: Dict[str, Any]) -> str:
+        outcome = row.get(outcomes_table)
+        # Embedded FK select comes back as a dict (one-to-one) or a list
+        # depending on client version/relationship shape — handle both.
+        if isinstance(outcome, list):
+            outcome = outcome[0] if outcome else None
+        if not outcome:
+            return "unresolved"
+        return outcome.get("observation_excerpt") or outcome.get("outcome_label") or "unresolved"
 
     return {
         "department": department,
         "case_count": len(rows),
-        "risk_level_breakdown": risk_counts,
+        "action_type_breakdown": action_counts,
         "recent_cases": [
             {
                 "title": row.get("decision_title"),
-                "quarter": row.get("quarter"),
-                "outcome": row.get("outcome_summary"),
+                "quarter": row.get("decision_date"),
+                "outcome": _outcome_text(row),
             }
             for row in rows[:5]
         ],
@@ -77,11 +90,11 @@ def _department_case_snapshot(department: str, limit: int = 20) -> Dict[str, Any
 
 def _format_snapshot(snapshot: Dict[str, Any], label: str) -> str:
     if snapshot["case_count"] == 0:
-        return f"No {label.lower()} found in decision_cases for department={snapshot['department']}."
+        return f"No {label.lower()} found in decisions for department={snapshot['department']}."
 
     lines = [
         f"{label} for {snapshot['department']} ({snapshot['case_count']} historical cases):",
-        f"Risk level breakdown: {snapshot['risk_level_breakdown']}",
+        f"Action type breakdown: {snapshot['action_type_breakdown']}",
         "Most recent cases:",
     ]
     for c in snapshot["recent_cases"]:
