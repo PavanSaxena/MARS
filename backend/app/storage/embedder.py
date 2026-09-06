@@ -23,8 +23,7 @@ def get_embeddings(texts: List[str]) -> List[list]:
 
     Encoding a list at once lets sentence-transformers batch the forward
     passes on the model, which is far faster than calling get_embedding()
-    in a per-item Python loop (see app.storage.index_cases, which used to
-    do exactly that and appeared to hang on large tables).
+    in a per-item Python loop.
     """
     if not texts:
         return []

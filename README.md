@@ -92,21 +92,20 @@ You'll still need a frontend to talk to it — either point Open WebUI's own con
 
 ## Supabase Setup (one-time)
 
-MARS uses Supabase both as the source-of-truth database and as the vector store (via the `pgvector` extension) — there's no separate vector DB to keep in sync.
+MARS uses Supabase both as the source-of-truth database and as the vector store (via the `pgvector` extension) — there's no separate vector DB to keep in sync. Historical decisions live in the **`decisions`** table, and their observed outcomes in **`outcomes`**, sourced from `dataset/Decisions/decisions.csv` and `dataset/Outcome/outcomes.csv`.
 
-In your Supabase project's SQL editor, run, in order:
+In your Supabase project's SQL editor, run:
 
-1. `backend/sql/001_pgvector_setup.sql` — enables `pgvector`, adds the `embedding` column to `decision_cases`, creates the similarity-search function.
-2. `backend/sql/002_bulk_update_embeddings.sql` — creates the batched-write function used to backfill embeddings.
+1. `backend/sql/001_setup.sql` — enables `pgvector`, creates `decisions` and `outcomes`, the `match_decisions` similarity-search RPC, the batched embedding-write RPC, the outcome-chronology trigger, and RLS policies.
 
-Then backfill embeddings for any existing case rows:
+Then import the CSVs and compute embeddings in one pass:
 
 ```bash
 # from backend/, with dependencies installed locally, or via `docker compose exec mars-backend`
-python -m app.storage.index_cases
+python -m app.storage.sync_decisions_to_supabase
 ```
 
-Re-run this any time you add or edit rows in `decision_cases` — there's no trigger that does it automatically.
+Re-run this any time the dataset changes — it upserts by `case_id`.
 
 ---
 
@@ -126,7 +125,8 @@ Optional:
 TAVILY_API_KEY=your_tavily_api_key       # powers 3 live-search tools; without it they return "unavailable"
 OPENAI_API_KEY=your_openai_api_key       # only needed to enable openai:* models
 ANTHROPIC_API_KEY=your_anthropic_api_key # only needed to enable anthropic:* models
-SUPABASE_CASES_TABLE=decision_cases
+SUPABASE_DECISIONS_TABLE=decisions
+SUPABASE_OUTCOMES_TABLE=outcomes
 API_HOST=0.0.0.0
 API_PORT=8000
 ```
