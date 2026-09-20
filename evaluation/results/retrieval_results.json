@@ -1,0 +1,43 @@
+{
+  "benchmark": "MARS 2023 Retrieval Benchmark",
+  "dataset_size": 640,
+  "metrics": [
+    {
+      "system": "Baseline R1: BM25 Lexical",
+      "queries_evaluated": 640,
+      "recall_at_1": 0.9969,
+      "recall_at_3": 1.0,
+      "recall_at_5": 1.0,
+      "mrr": 0.9984,
+      "ndcg_at_5": 0.9931,
+      "dept_routing_precision": 0.8766,
+      "cross_dept_recall": 0.3031,
+      "mean_latency_ms": 3.0
+    },
+    {
+      "system": "Baseline R2: Naive Dense Vector",
+      "queries_evaluated": 640,
+      "recall_at_1": 0.9844,
+      "recall_at_3": 1.0,
+      "recall_at_5": 1.0,
+      "mrr": 0.9922,
+      "ndcg_at_5": 0.9935,
+      "dept_routing_precision": 0.9047,
+      "cross_dept_recall": 0.2375,
+      "mean_latency_ms": 0.04
+    },
+    {
+      "system": "MARS: Hybrid + MMR + Cross-Dept",
+      "queries_evaluated": 640,
+      "recall_at_1": 0.9938,
+      "recall_at_3": 1.0,
+      "recall_at_5": 1.0,
+      "mrr": 0.9966,
+      "ndcg_at_5": 0.9908,
+      "dept_routing_precision": 0.8925,
+      "cross_dept_recall": 0.2578,
+      "mean_latency_ms": 2.4
+    }
+  ],
+  "timestamp": "2026-09-20T12:57:49.216670Z"
+}

@@ -27,20 +27,20 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
 
     # Models selectable at request time (see QueryRequest.model in
     # app/api/routes.py). Each entry is "<provider>:<model>", matching
     # langchain's init_chat_model() convention — this is exactly what's
     # passed to init_chat_model, so adding a new option is a one-line change
     # here, nothing else in the codebase needs to know about it.
-    #
-    # NOTE: as of Aug 2026 Groq is retiring llama-3.3-70b-versatile /
-    # llama-3.1-8b-instant; use the openai/gpt-oss-* models below instead.
-    DEFAULT_MODEL: str = "groq:openai/gpt-oss-120b"
+    DEFAULT_MODEL: str = "ollama:qwen2.5:3b"
     AVAILABLE_MODELS: List[str] = [
+        "ollama:qwen2.5:3b",
+        "google_genai:gemini-3.8-flash",
+        "groq:qwen/qwen3.8-27b",
         "groq:openai/gpt-oss-120b",
         "groq:openai/gpt-oss-20b",
-        "groq:qwen/qwen3.6-27b",
     ]
 
     # Supabase (source data + vector store via pgvector)
@@ -53,9 +53,9 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: Optional[str] = None
 
     # Retrieval & Contextual Reranking
-    RETRIEVAL_CANDIDATE_COUNT: int = 25  # Top 20-30 candidates fetched from vector search
-    RETRIEVAL_MIN_CASES: int = 3         # Minimum number of target cases to return (if relevant)
-    RETRIEVAL_MAX_CASES: int = 10        # Maximum number of final diverse cases to return
+    RETRIEVAL_CANDIDATE_COUNT: int = 25  # Top candidates fetched from vector search
+    RETRIEVAL_MIN_CASES: int = 3          # Minimum number of target cases to return (if relevant)
+    RETRIEVAL_MAX_CASES: int = 10         # Maximum number of final diverse cases to return
     RETRIEVAL_SIMILARITY_FLOOR: float = 0.25  # Soft floor to eliminate zero/unrelated noise
     RETRIEVAL_MMR_LAMBDA: float = 0.65   # Balance between relevance (1.0) and diversity (0.0)
 
@@ -71,6 +71,8 @@ class Settings(BaseSettings):
             "groq": self.GROQ_API_KEY,
             "openai": self.OPENAI_API_KEY,
             "anthropic": self.ANTHROPIC_API_KEY,
+            "google_genai": self.GEMINI_API_KEY,
+            "ollama": "local",
         }.get(provider)
 
 
@@ -78,12 +80,17 @@ settings = Settings()
 
 # pydantic-settings' env_file loading only populates this Settings object —
 # it does NOT set real process environment variables. But the LLM provider
-# SDKs invoked via langchain's init_chat_model() (groq, openai, anthropic)
-# read their API key straight from os.environ, not from this settings
-# object. Without this sync, get_llm() (app/agents/common.py) fails with
-# e.g. "GROQ_API_KEY environment variable" even though settings.GROQ_API_KEY
-# — and therefore GET /api/models' availability check — is correctly set.
-for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY"):
+# SDKs invoked via langchain's init_chat_model() (groq, openai, anthropic,
+# google-genai) read their API key straight from os.environ, not from this
+# settings object. Without this sync, get_llm() (app/agents/common.py) fails
+# with e.g. "GROQ_API_KEY environment variable" even though the settings key
+# is correctly set.
+for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY", "GEMINI_API_KEY"):
     _value = getattr(settings, _env_key, None)
     if _value and not os.environ.get(_env_key):
         os.environ[_env_key] = _value
+
+# LangChain's Google GenAI integration (langchain-google-genai) reads
+# GOOGLE_API_KEY from os.environ. Map GEMINI_API_KEY → GOOGLE_API_KEY.
+if settings.GEMINI_API_KEY and not os.environ.get("GOOGLE_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY

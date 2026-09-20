@@ -34,7 +34,7 @@ from mcp.server.fastmcp import FastMCP
 from app.core.config import settings
 from app.services.supabase_client import get_supabase_client
 
-mcp = FastMCP("mars-tools")
+mcp = FastMCP("mars-tools", log_level="ERROR")
 
 
 # ---------------------------------------------------------------------------
