@@ -49,6 +49,7 @@ def get_llm(model_id: Optional[str] = None):
     resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
+        logger.info("llm_initializing model=%s", resolved)
         provider = resolved.split(":", 1)[0] if ":" in resolved else ""
         kwargs: Dict[str, Any] = {"max_retries": 10}
         if provider == "ollama":
@@ -59,6 +60,8 @@ def get_llm(model_id: Optional[str] = None):
             kwargs["base_url"] = settings.OLLAMA_BASE_URL
             logger.info(f"[get_llm] Ollama model '{resolved}' → base_url={settings.OLLAMA_BASE_URL}")
         _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
+    else:
+        logger.info("llm_reused model=%s", resolved)
     return _llm_cache[resolved]
 
 
@@ -109,6 +112,7 @@ def retrieve_case_context(
     warnings: List[str] = []
 
     try:
+        logger.info("retrieval_started domain=%s", domain)
         cases = get_similar_cases(
             query=query,
             domain=domain,
@@ -121,6 +125,7 @@ def retrieve_case_context(
         cases = []
         warnings.append(f"retrieval_failed: {e}")
         logger.error(f"[{domain.upper()}] Case retrieval failed: {e}", exc_info=True)
+        logger.exception("retrieval_failed domain=%s", domain)
 
     if cases:
         case_text = "\n\n".join([_format_case_for_prompt(case, i + 1) for i, case in enumerate(cases)])
@@ -478,6 +483,7 @@ def run_llm_with_tools(
     from app.tools.tool_executor import execute_tool_call
 
     if not tools:
+        logger.info("llm_tool_phase_skipped agent=%s", agent_name)
         logger.info(f"[{agent_name}] Running LLM inference (no tools bound)")
         response = llm.invoke(prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
@@ -490,6 +496,7 @@ def run_llm_with_tools(
     # call happens at all. See _recover_json_tool_error for the actual fix.
     try:
         logger.info(f"[{agent_name}] Running LLM inference with {len(tools)} tools: {[t.name for t in tools]}")
+        logger.info("llm_tool_decision_started agent=%s", agent_name)
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
         ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
     except Exception as e:
@@ -502,9 +509,11 @@ def run_llm_with_tools(
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
+        logger.info("llm_tool_decision_finished agent=%s tool_calls=0", agent_name)
         logger.info(f"[{agent_name}] Model decided not to call any tools; returning direct answer")
         return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message
 
+    logger.info("llm_tool_decision_finished agent=%s tool_calls=%d", agent_name, len(tool_calls))
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
 
@@ -513,7 +522,9 @@ def run_llm_with_tools(
         args = call.get("args", {}) or {}
 
         logger.info(f"[{agent_name}] Executing tool call '{tool_name}' with args: {args}")
+        logger.info("tool_call_requested agent=%s tool=%s", agent_name, tool_name)
         result = execute_tool_call(agent_name, tool_name, args)
+        logger.info("tool_call_finished agent=%s tool=%s status=%s", agent_name, tool_name, result.get("status"))
         used_tools.append(tool_name)
 
         tool_content = (
@@ -527,5 +538,7 @@ def run_llm_with_tools(
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
     logger.info(f"[{agent_name}] Synthesizing final answer after {len(used_tools)} tool call(s)")
+    logger.info("llm_tool_follow_up_started agent=%s", agent_name)
     final_message = llm.invoke(messages)
+    logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message

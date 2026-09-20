@@ -65,8 +65,10 @@ def classify_intent(state: State) -> Dict[str, Any]:
     a thread — an opening "hi" or "test" is just as much a chat turn as a
     later one.
     """
+    logger.info("router_started")
     messages = state.get("messages", [])
     if not messages:
+        logger.info("router_selected route=chat")
         return {"route": "chat"}
 
     last = messages[-1]
@@ -76,6 +78,7 @@ def classify_intent(state: State) -> Dict[str, Any]:
     query = (query or "").strip()
 
     if not query:
+        logger.info("router_selected route=chat")
         return {"route": "chat"}
 
     prompt = _ROUTER_PROMPT.format(history=_render_history(messages), query=query)
@@ -83,12 +86,13 @@ def classify_intent(state: State) -> Dict[str, Any]:
     try:
         response = get_llm(state.get("model")).invoke(prompt)
         text = (getattr(response, "content", "") or "").strip().lower()
-    except Exception as exc:
+    except Exception:
         # If classification itself fails, default to the safer/heavier path
         # rather than silently skipping analysis.
-        logger.warning(f"[Router] Classification failed ({exc}), falling back to 'pipeline'")
+        logger.exception("router_failed default_route=pipeline")
         return {"route": "pipeline"}
 
     route = "chat" if text.startswith("chat") else "pipeline"
     logger.info(f"[Router] Intent classified as route='{route}' (raw='{text}')")
+    logger.info("router_selected route=%s", route)
     return {"route": route}
