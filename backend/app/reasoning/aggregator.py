@@ -101,7 +101,13 @@ Final Decision:
 <the grounded recommendation, or explicit refusal if no historical evidence exists>
 """
 
+    import time
+    time.sleep(2)
     response = get_llm(state.get("model")).invoke(prompt)
+
+    # Normalise content — Gemini returns a list of dicts, not a plain string.
+    from app.agents.common import _normalize_content
+    response_text = _normalize_content(getattr(response, "content", str(response)))
 
     explainability_lines = []
     for name, output in departments:
@@ -117,7 +123,7 @@ Final Decision:
         else ""
     )
 
-    final_output = f"{response.content}{explainability_block}"
+    final_output = f"{response_text}{explainability_block}"
 
     # Collect retrieved cases per department so the API can surface them.
     retrieved_cases_by_dept: dict = {}

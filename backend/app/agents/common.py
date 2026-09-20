@@ -13,6 +13,26 @@ from app.state import State
 _llm_cache: Dict[str, Any] = {}
 
 
+def _normalize_content(content: Any) -> str:
+    """Convert LLM response content to a plain string.
+
+    Gemini returns content as a list of dicts like
+    [{'type': 'text', 'text': '...', 'extras': {...}}] while other providers
+    return a plain string. This normalises both to a string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                parts.append(item.get("text", str(item)))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
+
 def get_llm(model_id: Optional[str] = None):
     """
     Return a cached chat model for the given "<provider>:<model>" id (see
@@ -26,7 +46,7 @@ def get_llm(model_id: Optional[str] = None):
     resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
-        _llm_cache[resolved] = init_chat_model(resolved)
+        _llm_cache[resolved] = init_chat_model(resolved, max_retries=10)
     return _llm_cache[resolved]
 
 
@@ -59,7 +79,7 @@ def _format_case_for_prompt(case: dict, idx: int) -> str:
     case_id = metadata.get("case_id", idx)
     quarter = metadata.get("quarter", "")
     outcome = metadata.get("outcome") or case.get("outcome", "unknown")
-    doc = case.get("document", "")
+    doc = case.get("document", "") or ""
     
     header = f"--- Case #{idx} [ID: {case_id}, Quarter: {quarter}, Outcome: {outcome}] ---"
     return f"{header}\n{doc}"
@@ -444,7 +464,7 @@ def run_llm_with_tools(
 
     if not tools:
         response = llm.invoke(prompt)
-        return getattr(response, "content", str(response)), [], response
+        return _normalize_content(getattr(response, "content", str(response))), [], response
 
     # tool_choice="auto" is explicit here (langchain's bind_tools default is
     # already "auto" on every provider we use) for clarity, but note it does
@@ -452,12 +472,18 @@ def run_llm_with_tools(
     # is the model's own choice of how to encode its final answer under
     # Harmony's JSON-constraint mechanism, not a matter of whether a tool
     # call happens at all. See _recover_json_tool_error for the actual fix.
-    llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
-    ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
+    try:
+        llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
+        ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
+    except Exception as e:
+        if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
+            response = llm.invoke(prompt)
+            return _normalize_content(getattr(response, "content", str(response))), [], response
+        raise e
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
-        return getattr(ai_message, "content", str(ai_message)), [], ai_message
+        return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message
 
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
@@ -476,5 +502,7 @@ def run_llm_with_tools(
         )
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
 
-    final_message = _invoke_recovering_json_tool_error(llm_with_tools, messages)
-    return getattr(final_message, "content", str(final_message)), used_tools, final_message
+    # Invoke base llm (without tools bound) so the model is forced to synthesize
+    # the final structured JSON response rather than attempting another tool call.
+    final_message = llm.invoke(messages)
+    return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message

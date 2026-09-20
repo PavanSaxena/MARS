@@ -9,8 +9,9 @@ logger = logging.getLogger("app.retrieval")
 if not logger.handlers:
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [Retrieval] %(message)s"))
+    _handler.setLevel(logging.WARNING)
     logger.addHandler(_handler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.WARNING)
 
 # Common stopwords to filter when calculating lexical relevance
 _STOPWORDS = {
@@ -105,12 +106,12 @@ def get_similar_cases(
 
     # 1. Fetch Candidate Pool (20-30 candidates from vector DB)
     rows = retrieve_cases(query=query, k=candidate_count, domain=domain)
-    logger.info(
+    logger.debug(
         f"Retrieved {len(rows)} raw candidates for domain='{domain}', query='{query[:60]}...'"
     )
 
     if not rows:
-        logger.info(f"No candidate rows returned from vector search for domain='{domain}'.")
+        logger.debug(f"No candidate rows returned from vector search for domain='{domain}'.")
         return []
 
     query_tokens = _tokenize(query)
@@ -150,16 +151,16 @@ def get_similar_cases(
         })
 
     # Log candidate scores for evaluation
-    logger.info(f"Scored {len(scored_candidates)} candidates above similarity floor ({similarity_floor}):")
+    logger.debug(f"Scored {len(scored_candidates)} candidates above similarity floor ({similarity_floor}):")
     for idx, c in enumerate(scored_candidates[:15]):  # log top 15 candidates
-        logger.info(
+        logger.debug(
             f"  Candidate #{idx + 1}: ID={c['case_id']}, Q={c['quarter']}, "
             f"VecSim={c['vector_sim']}, LexScore={c['lexical_score']}, "
             f"Composite={c['relevance_score']}, Title='{c['title'][:40]}'"
         )
 
     if not scored_candidates:
-        logger.info(f"All candidates were below similarity floor ({similarity_floor}). Returning 0 cases.")
+        logger.debug(f"All candidates were below similarity floor ({similarity_floor}). Returning 0 cases.")
         return []
 
     # Sort candidates by initial composite relevance descending
@@ -262,10 +263,10 @@ def get_similar_cases(
         })
 
     # Log selected cases and final count
-    logger.info(f"--- Final Selected Evidence Cases for domain='{domain}' (Count: {len(cases)}) ---")
+    logger.debug(f"--- Final Selected Evidence Cases for domain='{domain}' (Count: {len(cases)}) ---")
     for idx, case in enumerate(cases):
         meta = case["metadata"]
-        logger.info(
+        logger.debug(
             f"  Selected #{idx + 1}: ID={meta['case_id']} ({meta['quarter']}) | "
             f"Sim={meta['similarity']} | Relevance={meta['relevance_score']} | "
             f"Risk={meta['risk_level']} | Outcome='{meta['outcome'][:30]}'"
