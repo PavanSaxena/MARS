@@ -14,6 +14,7 @@ Two kinds of tools:
 Each tool is a LangChain @tool so agents can bind them directly via
 llm.bind_tools(...) — see app.agents.common.run_llm_with_tools.
 """
+import logging
 from typing import Any, Dict, List
 
 from langchain_core.tools import tool
@@ -21,9 +22,11 @@ from langchain_core.tools import tool
 from app.core.config import settings
 from app.services.supabase_client import get_supabase_client
 
+logger = logging.getLogger(__name__)
 
 def _department_case_snapshot(department: str, limit: int = 20) -> Dict[str, Any]:
     """Fetch recent decision_cases rows for a department and summarize them."""
+    logger.info("department_snapshot_started department=%s limit=%d", department, limit)
     supabase = get_supabase_client()
     table = settings.SUPABASE_CASES_TABLE
 
@@ -42,7 +45,7 @@ def _department_case_snapshot(department: str, limit: int = 20) -> Dict[str, Any
         risk = row.get("risk_level") or "Unknown"
         risk_counts[risk] = risk_counts.get(risk, 0) + 1
 
-    return {
+    snapshot = {
         "department": department,
         "case_count": len(rows),
         "risk_level_breakdown": risk_counts,
@@ -55,6 +58,8 @@ def _department_case_snapshot(department: str, limit: int = 20) -> Dict[str, Any
             for row in rows[:5]
         ],
     }
+    logger.info("department_snapshot_finished department=%s cases=%d", department, len(rows))
+    return snapshot
 
 
 def _format_snapshot(snapshot: Dict[str, Any], label: str) -> str:
@@ -74,18 +79,21 @@ def _format_snapshot(snapshot: Dict[str, Any], label: str) -> str:
 def _web_search(query: str, label: str) -> str:
     """Run a live web search via Tavily. Degrades gracefully if no API key is set."""
     if not settings.TAVILY_API_KEY:
+        logger.warning("web_search_skipped label=%s reason=missing_api_key", label)
         return (
             f"{label} unavailable: TAVILY_API_KEY is not configured, so no live web "
             f"search could be run for '{query}'."
         )
 
     try:
+        logger.info("web_search_started label=%s", label)
         from langchain_tavily import TavilySearch
 
         search = TavilySearch(max_results=4, tavily_api_key=settings.TAVILY_API_KEY)
         results = search.invoke({"query": query})
         items = results.get("results", []) if isinstance(results, dict) else results
         if not items:
+            logger.info("web_search_finished label=%s results=0", label)
             return f"{label}: no relevant web results found for '{query}'."
 
         lines = [f"{label} (live web search results for '{query}'):"]
@@ -94,8 +102,10 @@ def _web_search(query: str, label: str) -> str:
             content = (item.get("content") or "").strip().replace("\n", " ")[:280]
             url = item.get("url", "")
             lines.append(f"  - {title}: {content}... ({url})")
+        logger.info("web_search_finished label=%s results=%d", label, len(items))
         return "\n".join(lines)
     except Exception as exc:  # network/API errors shouldn't crash the agent
+        logger.exception("web_search_failed label=%s", label)
         return f"{label} failed: {exc}"
 
 
@@ -204,6 +214,7 @@ def execute_tool_call(agent_name: str, tool_name: str, parameters: Dict[str, Any
 
     allowed = get_tools_for_agent(agent_name)
     if tool_name not in allowed:
+        logger.warning("tool_call_rejected agent=%s tool=%s reason=not_allowed", agent_name, tool_name)
         return {
             "status": "error",
             "message": f"Tool '{tool_name}' is not registered for agent '{agent_name}'.",
@@ -211,10 +222,14 @@ def execute_tool_call(agent_name: str, tool_name: str, parameters: Dict[str, Any
 
     tool_fn = TOOLS_BY_NAME.get(tool_name)
     if not tool_fn:
+        logger.warning("tool_call_rejected agent=%s tool=%s reason=not_found", agent_name, tool_name)
         return {"status": "error", "message": f"Tool '{tool_name}' not found."}
 
     try:
+        logger.info("tool_execution_started agent=%s tool=%s", agent_name, tool_name)
         result = tool_fn.invoke(parameters)
+        logger.info("tool_execution_finished agent=%s tool=%s status=success", agent_name, tool_name)
         return {"status": "success", "result": result}
     except Exception as e:
+        logger.exception("tool_execution_failed agent=%s tool=%s", agent_name, tool_name)
         return {"status": "error", "message": str(e)}

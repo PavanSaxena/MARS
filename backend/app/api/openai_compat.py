@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 import uuid
@@ -36,6 +37,7 @@ from app.agents.master_agent import run_graph
 from app.api.routes import parse_result
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -241,11 +243,22 @@ def chat_completions(
     # precedence since it's the more deliberate/explicit of the two.
     thread_id = x_chat_id or request.chat_id or _thread_id_for(request.messages)
 
-    raw_result = run_graph(
-        user_input=user_input, thread_id=thread_id, model=request.model
+    logger.info(
+        "openai_chat_completion_received thread_id=%s model=%s stream=%s",
+        thread_id,
+        request.model,
+        request.stream,
     )
+    try:
+        raw_result = run_graph(
+            user_input=user_input, thread_id=thread_id, model=request.model
+        )
+    except Exception:
+        logger.exception("openai_chat_completion_failed thread_id=%s", thread_id)
+        raise
     structured = parse_result(raw_result)
     content = _format_markdown(structured)
+    logger.info("openai_chat_completion_completed thread_id=%s", thread_id)
 
     if request.stream:
         return StreamingResponse(

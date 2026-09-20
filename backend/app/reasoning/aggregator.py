@@ -1,8 +1,10 @@
+import logging
 from typing import Any, Dict, List, Tuple
 
 from app.agents.common import get_llm
 from app.state import State
 
+logger = logging.getLogger(__name__)
 
 def _confidence_value(output: dict) -> float:
     """Self-reported LLM confidence, used for ranking until case_based_confidence is finalized."""
@@ -43,6 +45,7 @@ def aggregator_agent(state: State) -> Dict:
     - Produces a final actionable strategic decision plus a per-department
       explainability trail
     """
+    logger.info("aggregator_started")
     departments: List[Tuple[str, dict]] = [
         ("Finance", state.get("finance_output") or {}),
         ("R&D", state.get("rd_output") or {}),
@@ -58,7 +61,7 @@ def aggregator_agent(state: State) -> Dict:
         for i, (name, output) in enumerate(ranked)
         if output
     ) or "No department outputs available."
-
+    logger.info("aggregator_ranking ranking=%s", ranked_summary)
     assessments_block = "\n\n".join(_fmt_department(name, output) for name, output in departments)
 
     prompt = f"""
@@ -97,7 +100,13 @@ Final Decision:
 <the recommended course of action>
 """
 
-    response = get_llm(state.get("model")).invoke(prompt)
+    logger.info("aggregator_llm_started")
+    try:
+        response = get_llm(state.get("model")).invoke(prompt)
+    except Exception:
+        logger.exception("aggregator_failed")
+        raise
+    logger.info("aggregator_llm_finished")
 
     explainability_lines = []
     for name, output in departments:
@@ -114,7 +123,7 @@ Final Decision:
     )
 
     final_output = f"{response.content}{explainability_block}"
-
+    logger.info("aggregator_finished")
     return {
         "final_output": final_output,
         "messages": state.get("messages", []) + [response],

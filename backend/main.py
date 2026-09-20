@@ -5,6 +5,9 @@ from app.agents.master_agent import run_graph, save_graph_visualization
 from app.api.routes import router
 from app.api.openai_compat import router as openai_router
 from app.core.config import settings
+from app.core.logging_config import configure_logging
+
+configure_logging()
 
 app = FastAPI(
     title="MARS Multi-Agent Decision System",

@@ -1,10 +1,11 @@
 import re
-
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.agents.master_agent import run_graph, get_thread_model
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class QueryRequest(BaseModel):
@@ -142,8 +143,18 @@ def query_system(request: QueryRequest):
                 detail=f"Model '{request.model}' requires a {provider.upper()}_API_KEY to be set in .env.",
             )
 
-    raw_result = run_graph(user_input=request.query, thread_id=request.thread_id, model=request.model)
+    logger.info("query_received thread_id=%s model=%s", request.thread_id, request.model)
+    try:
+        raw_result = run_graph(
+            user_input=request.query,
+            thread_id=request.thread_id,
+            model=request.model,
+        )
+    except Exception:
+        logger.exception("query_failed thread_id=%s", request.thread_id)
+        raise
 
     structured = parse_result(raw_result)
+    logger.info("query_completed thread_id=%s", request.thread_id)
 
     return structured

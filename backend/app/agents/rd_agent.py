@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict
 
 from app.agents.common import (
@@ -13,6 +14,8 @@ from app.agents.common import (
 from app.state import State
 from app.tools.tool_registry import get_tool_objects_for_agent
 
+logger = logging.getLogger(__name__)
+
 def rd_agent(state: State) -> Dict[str, Any]:
     """
     R&D Agent:
@@ -20,11 +23,17 @@ def rd_agent(state: State) -> Dict[str, Any]:
     - Evaluates technical feasibility, innovation potential, and timelines
     - Outputs a structured recommendation
     """
+    logger.info("agent_started agent=rd")
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("rd_output", messages)
-
+    logger.info("retrieval_started agent=rd")
     cases, case_text, warnings = retrieve_case_context(query=query, domain="rd", k=5)
+    logger.info(
+        "retrieval_finished agent=rd cases=%d warnings=%s",
+        len(cases),
+        warnings,
+    )
     tools = get_tool_objects_for_agent("rd_agent")
 
     prompt = build_json_prompt(
@@ -44,15 +53,16 @@ def rd_agent(state: State) -> Dict[str, Any]:
         case_text=case_text,
         tool_names=[t.name for t in tools],
     )
-
+    logger.info("llm_started agent=rd")
     content, tools_used, final_message = run_llm_with_tools(
         get_llm(state.get("model")), prompt, tools, agent_name="rd_agent"
     )
+    logger.info("llm_finished agent=rd tools_used=%s", tools_used)
     parsed_output = parse_rd_output(content)
     parsed_output.update(build_case_evidence(cases, tools_used))
     if warnings:
         parsed_output["warnings"] = warnings
-
+    logger.info("agent_finished agent=rd")
     return {
         "rd_output": parsed_output,
         "messages": messages + [final_message],

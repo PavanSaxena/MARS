@@ -1,5 +1,6 @@
 import json
 import re
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
@@ -10,6 +11,7 @@ from app.reasoning.similarity import compute_similarity
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
 
+logger = logging.getLogger(__name__)
 _llm_cache: Dict[str, Any] = {}
 
 
@@ -26,7 +28,10 @@ def get_llm(model_id: Optional[str] = None):
     resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
+        logger.info("llm_initializing model=%s", resolved)
         _llm_cache[resolved] = init_chat_model(resolved)
+    else:
+        logger.info("llm_reused model=%s", resolved)
     return _llm_cache[resolved]
 
 
@@ -61,6 +66,7 @@ def retrieve_case_context(query: str, domain: str, k: int = 5) -> Tuple[List[dic
     try:
         cases = get_similar_cases(query=query, domain=domain, k=k)
     except Exception:
+        logger.exception("retrieval_failed domain=%s", domain)
         cases = []
         warnings.append("retrieval_failed")
 
@@ -354,6 +360,7 @@ def run_llm_with_tools(
     from app.tools.tool_executor import execute_tool_call
 
     if not tools:
+        logger.info("llm_tool_phase_skipped agent=%s", agent_name)
         response = llm.invoke(prompt)
         return getattr(response, "content", str(response)), [], response
 
@@ -364,11 +371,15 @@ def run_llm_with_tools(
     # Harmony's JSON-constraint mechanism, not a matter of whether a tool
     # call happens at all. See _recover_json_tool_error for the actual fix.
     llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
+    logger.info("llm_tool_decision_started agent=%s", agent_name)
     ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
+        logger.info("llm_tool_decision_finished agent=%s tool_calls=0", agent_name)
         return getattr(ai_message, "content", str(ai_message)), [], ai_message
+
+    logger.info("llm_tool_decision_finished agent=%s tool_calls=%d", agent_name, len(tool_calls))
 
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
@@ -376,8 +387,18 @@ def run_llm_with_tools(
     for call in tool_calls:
         tool_name = call.get("name")
         args = call.get("args", {}) or {}
-
+        logger.info(
+            "tool_call_requested agent=%s tool=%s",
+            agent_name,
+            tool_name,
+        )
         result = execute_tool_call(agent_name, tool_name, args)
+        logger.info(
+            "tool_call_finished agent=%s tool=%s status=%s",
+            agent_name,
+            tool_name,
+            result["status"],
+        )
         used_tools.append(tool_name)
 
         tool_content = (
@@ -387,5 +408,7 @@ def run_llm_with_tools(
         )
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
 
+    logger.info("llm_tool_follow_up_started agent=%s", agent_name)
     final_message = _invoke_recovering_json_tool_error(llm_with_tools, messages)
+    logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return getattr(final_message, "content", str(final_message)), used_tools, final_message

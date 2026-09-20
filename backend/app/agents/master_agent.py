@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 from typing import Any, Dict
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -14,7 +15,7 @@ from app.reasoning.aggregator import aggregator_agent
 from app.state import State
 
 memory = MemorySaver()
-
+logger = logging.getLogger(__name__)
 
 def master_router(state: State) -> Dict[str, Any]:
     """Fan-out node that forwards the incoming message stream to department agents."""
@@ -91,9 +92,16 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
     initial_state: Dict[str, Any] = {"messages": [{"role": "user", "content": user_input}]}
     if model:
         initial_state["model"] = model
+    logger.info("graph_initial_state thread_id=%s model=%s", thread_id, model)
 
     config = {"configurable": {"thread_id": thread_id}}
-    final_state = graph.invoke(initial_state, config=config)
+    logger.info("graph_started thread_id=%s model=%s", thread_id, model)
+    try:
+        final_state = graph.invoke(initial_state, config=config)
+    except Exception:
+        logger.exception("graph_failed thread_id=%s", thread_id)
+        raise
+    logger.info("graph_finished thread_id=%s", thread_id)
     return final_state.get("final_output", "No output generated.")
 
 

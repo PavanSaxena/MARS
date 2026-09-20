@@ -1,7 +1,10 @@
 from typing import Any, Dict
+import logging
 
 from app.agents.common import get_llm
 from app.state import State
+
+logger = logging.getLogger(__name__)
 
 _ROUTER_PROMPT = """You are the entry-point router for a multi-department business \
 decision system (Legal, Finance, Operations, R&D). Every user message currently \
@@ -62,8 +65,10 @@ def classify_intent(state: State) -> Dict[str, Any]:
     a thread — an opening "hi" or "test" is just as much a chat turn as a
     later one.
     """
+    logger.info("router_started")
     messages = state.get("messages", [])
     if not messages:
+        logger.info("router_selected route=chat")
         return {"route": "chat"}
 
     last = messages[-1]
@@ -73,6 +78,7 @@ def classify_intent(state: State) -> Dict[str, Any]:
     query = (query or "").strip()
 
     if not query:
+        logger.info("router_selected route=chat")
         return {"route": "chat"}
 
     prompt = _ROUTER_PROMPT.format(history=_render_history(messages), query=query)
@@ -83,7 +89,9 @@ def classify_intent(state: State) -> Dict[str, Any]:
     except Exception:
         # If classification itself fails, default to the safer/heavier path
         # rather than silently skipping analysis.
+        logger.exception("router_failed default_route=pipeline")
         return {"route": "pipeline"}
 
     route = "chat" if text.startswith("chat") else "pipeline"
+    logger.info("router_selected route=%s", route)
     return {"route": route}
