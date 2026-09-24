@@ -53,6 +53,9 @@ def build_embedding_doc(row: Dict[str, Any]) -> str:
 
 
 def _clean_decision_row(rec: Dict[str, Any]) -> Dict[str, Any]:
+    if rec.get("action_type") == "terminate":
+        rec["action_type"] = "reduce"
+
     # Parse quantitative_signals if stringified JSON
     q_sig = rec.get("quantitative_signals")
     if isinstance(q_sig, str) and (q_sig.startswith("[") or q_sig.startswith("{")):
