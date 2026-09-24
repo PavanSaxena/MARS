@@ -41,7 +41,7 @@ create table if not exists decisions (
   decision_description text not null,
   documented_action text not null,
   action_type text not null check (
-    action_type in ('approve', 'expand', 'reduce', 'defer', 'revise', 'investigate', 'reject', 'implement', 'maintain')
+    action_type in ('approve', 'expand', 'reduce', 'defer', 'revise', 'investigate', 'reject', 'implement', 'maintain', 'terminate')
   ),
   decision_rationale text,
   quantitative_signals jsonb default '[]'::jsonb,
@@ -65,7 +65,7 @@ alter table if exists decisions add column if not exists embedding vector(384);
 -- (re-running this fixes a table created before 'implement'/'maintain' were added).
 alter table if exists decisions drop constraint if exists decisions_action_type_check;
 alter table if exists decisions add constraint decisions_action_type_check check (
-  action_type in ('approve', 'expand', 'reduce', 'defer', 'revise', 'investigate', 'reject', 'implement', 'maintain')
+  action_type in ('approve', 'expand', 'reduce', 'defer', 'revise', 'investigate', 'reject', 'implement', 'maintain', 'terminate')
 );
 
 create index if not exists idx_decisions_dept_date
