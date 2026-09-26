@@ -167,6 +167,34 @@ def _format_markdown(structured: dict[str, Any]) -> str:
     return "\n\n".join(parts) if parts else "The model did not return a decision."
 
 
+def _format_evidence_block(retrieved_cases: dict) -> str:
+    """Render the per-department retrieved cases as a collapsible markdown
+    section. Each case shows its ID, quarter, similarity score, risk level,
+    outcome, and the key text the agent used to ground its reasoning."""
+    if not retrieved_cases:
+        return ""
+
+    lines = ["---", "### Evidence Used",
+             "*Historical cases retrieved from the dataset that grounded each agent's reasoning.*"]
+    for dept, cases in retrieved_cases.items():
+        if not cases:
+            continue
+        lines.append(f"\n#### {dept}")
+        for c in cases:
+            cid = c.get("case_id", "—")
+            quarter = c.get("quarter", "")
+            sim = c.get("similarity")
+            sim_str = f"{sim:.2f}" if isinstance(sim, (int, float)) else "—"
+            risk = c.get("risk_level", "")
+            outcome = c.get("outcome", "")
+            doc_preview = (c.get("document") or "")[:300].replace("\n", " ")
+            lines.append(
+                f"- **Case {cid}** ({quarter}) | Similarity: {sim_str} | Risk: {risk} | Outcome: {outcome}\n"
+                f"  > {doc_preview}…"
+            )
+    return "\n".join(lines)
+
+
 def _chat_completion_payload(model: str, content: str) -> dict[str, Any]:
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
@@ -220,6 +248,9 @@ def _sse_stream(model: str, content: str):
     yield "data: [DONE]\n\n"
 
 
+from app.core.errors import is_rate_limit_error, format_rate_limit_error
+
+
 @router.post("/v1/chat/completions")
 def chat_completions(
     request: ChatCompletionRequest,
@@ -243,22 +274,25 @@ def chat_completions(
     # precedence since it's the more deliberate/explicit of the two.
     thread_id = x_chat_id or request.chat_id or _thread_id_for(request.messages)
 
-    logger.info(
-        "openai_chat_completion_received thread_id=%s model=%s stream=%s",
-        thread_id,
-        request.model,
-        request.stream,
-    )
     try:
-        raw_result = run_graph(
+        raw_result, retrieved_cases = run_graph(
             user_input=user_input, thread_id=thread_id, model=request.model
         )
-    except Exception:
-        logger.exception("openai_chat_completion_failed thread_id=%s", thread_id)
-        raise
-    structured = parse_result(raw_result)
-    content = _format_markdown(structured)
-    logger.info("openai_chat_completion_completed thread_id=%s", thread_id)
+    except Exception as exc:
+        if is_rate_limit_error(exc):
+            raw_result = format_rate_limit_error(exc, model_name=request.model)
+            retrieved_cases = {}
+        else:
+            raise exc
+
+    if "Provider Rate Limit Reached" in raw_result or "Rate limit" in raw_result:
+        content = raw_result
+    else:
+        structured = parse_result(raw_result)
+        content = _format_markdown(structured)
+        evidence = _format_evidence_block(retrieved_cases)
+        if evidence:
+            content = f"{content}\n\n{evidence}"
 
     if request.stream:
         return StreamingResponse(

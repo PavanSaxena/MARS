@@ -27,26 +27,23 @@ def finance_agent(state: State) -> Dict[str, Any]:
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("finance_output", messages)
-    logger.info("retrieval_started agent=finance")
-    cases, case_text, warnings = retrieve_case_context(query=query, domain="finance", k=5)
-    logger.info(
-        "retrieval_finished agent=finance cases=%d warnings=%s",
-        len(cases),
-        warnings,
-    )
+
+
+    cases, case_text, warnings = retrieve_case_context(query=query, domain="finance")
     tools = get_tool_objects_for_agent("finance_agent")
 
     prompt = build_json_prompt(
         agent_title="Finance Department",
         role_points=[
-            "Analyze financial aspects of the problem",
-            "Use past similar cases to guide decisions",
-            "Recommend a financially sound plan",
+            "Analyze financial aspects of the problem based strictly on retrieved historical evidence",
+            "Use past similar cases from the dataset to guide financial decisions",
+            "Refuse to fabricate or speculate if no historical cases exist",
         ],
         rules=[
-            "Analyze risks, costs, ROI, and feasibility",
-            "Use retrieved cases as supporting evidence",
-            "Confidence must be a number in [0, 1]",
+            "Ground all financial analysis strictly in the retrieved historical cases",
+            "Do NOT fabricate financial figures, budgets, VAT models, or ROI estimates without dataset evidence",
+            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
+            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
         ],
         query=query,
         case_text=case_text,
@@ -58,7 +55,7 @@ def finance_agent(state: State) -> Dict[str, Any]:
     )
     logger.info("llm_finished agent=finance tools_used=%s", tools_used)
     parsed_output = parse_finance_output(content)
-    parsed_output.update(build_case_evidence(cases, tools_used))
+    parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
     if warnings:
         parsed_output["warnings"] = warnings
     logger.info("agent_finished agent=finance")

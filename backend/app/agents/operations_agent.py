@@ -27,27 +27,22 @@ def operations_agent(state: State) -> Dict[str, Any]:
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("operations_output", messages)
-    logger.info("retrieval_started agent=operations")
-    cases, case_text, warnings = retrieve_case_context(query=query, domain="operations", k=5)
-    logger.info(
-        "retrieval_finished agent=operations cases=%d warnings=%s",
-        len(cases),
-        warnings,
-    )
+
+    cases, case_text, warnings = retrieve_case_context(query=query, domain="operations")
     tools = get_tool_objects_for_agent("operations_agent")
 
     prompt = build_json_prompt(
         agent_title="Operations Department",
         role_points=[
-            "Evaluate implementation feasibility and operational readiness",
-            "Assess process constraints, staffing, and execution timelines",
-            "Use past similar operations cases to guide decisions",
+            "Evaluate operational feasibility and supply chain impact based strictly on retrieved historical evidence",
+            "Assess capacity, inventory, and logistics using past case precedents",
+            "Refuse to fabricate or speculate if no historical cases exist",
         ],
         rules=[
-            "Evaluate capacity, process fit, and rollout practicality",
-            "Identify operational risks and mitigation options",
-            "Recommend an implementation approach",
-            "Confidence must be a number in [0, 1]",
+            "Ground all operational assessments strictly in the retrieved historical cases",
+            "Do NOT fabricate logistics plans, warehouse locations, buffer stocks, or supplier allocations without dataset evidence",
+            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
+            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
         ],
         query=query,
         case_text=case_text,
@@ -59,7 +54,7 @@ def operations_agent(state: State) -> Dict[str, Any]:
     )
     logger.info("llm_finished agent=operations tools_used=%s", tools_used)
     parsed_output = parse_operations_output(content)
-    parsed_output.update(build_case_evidence(cases, tools_used))
+    parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
     if warnings:
         parsed_output["warnings"] = warnings
     logger.info("agent_finished agent=operations")
