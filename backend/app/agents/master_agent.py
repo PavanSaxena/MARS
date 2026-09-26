@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -12,12 +13,15 @@ from app.agents.rd_agent import rd_agent
 from app.agents.router import classify_intent
 from app.reasoning.aggregator import aggregator_agent
 from app.state import State
+from app.core.logging_config import get_logger
 
+logger = get_logger("agents.master")
 memory = MemorySaver()
 
 
 def master_router(state: State) -> Dict[str, Any]:
     """Fan-out node that forwards the incoming message stream to department agents."""
+    logger.info("[Master] Fanning out request to department agents: Finance, R&D, Legal, Operations")
     return {"messages": state.get("messages", [])}
 
 
@@ -91,6 +95,10 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
     thread_id carries over automatically via the LangGraph checkpointer,
     rather than being reset to the default.
     """
+    start_time = time.time()
+    preview = user_input.replace("\n", " ")[:60]
+    logger.info(f"[Graph] Starting execution (thread='{thread_id}', model='{model or 'default'}', query=\"{preview}\")")
+
     initial_state: Dict[str, Any] = {"messages": [{"role": "user", "content": user_input}]}
     if model:
         initial_state["model"] = model
@@ -100,10 +108,16 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
         final_state = graph.invoke(initial_state, config=config)
         output_text = final_state.get("final_output", "No output generated.")
         retrieved_cases = final_state.get("retrieved_cases") or {}
+        elapsed = time.time() - start_time
+        route = final_state.get("route", "pipeline")
+        logger.info(f"[Graph] Execution completed in {elapsed:.2f}s (route='{route}')")
         return output_text, retrieved_cases
     except Exception as exc:
+        elapsed = time.time() - start_time
         if is_rate_limit_error(exc):
+            logger.warning(f"[Graph] Rate limit encountered after {elapsed:.2f}s: {exc}")
             return format_rate_limit_error(exc, model_name=model), {}
+        logger.error(f"[Graph] Execution failed after {elapsed:.2f}s: {exc}", exc_info=True)
         raise exc
 
 

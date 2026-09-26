@@ -2,6 +2,9 @@ from typing import Any, Dict
 
 from app.agents.common import get_llm
 from app.state import State
+from app.core.logging_config import get_logger
+
+logger = get_logger("agents.router")
 
 _ROUTER_PROMPT = """You are the entry-point router for a multi-department business \
 decision system (Legal, Finance, Operations, R&D). Every user message currently \
@@ -80,10 +83,12 @@ def classify_intent(state: State) -> Dict[str, Any]:
     try:
         response = get_llm(state.get("model")).invoke(prompt)
         text = (getattr(response, "content", "") or "").strip().lower()
-    except Exception:
+    except Exception as exc:
         # If classification itself fails, default to the safer/heavier path
         # rather than silently skipping analysis.
+        logger.warning(f"[Router] Classification failed ({exc}), falling back to 'pipeline'")
         return {"route": "pipeline"}
 
     route = "chat" if text.startswith("chat") else "pipeline"
+    logger.info(f"[Router] Intent classified as route='{route}' (raw='{text}')")
     return {"route": route}

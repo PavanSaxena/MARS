@@ -9,6 +9,9 @@ from app.reasoning.outcome_analysis import analyze_outcomes
 from app.reasoning.similarity import compute_similarity
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
+from app.core.logging_config import get_logger
+
+logger = get_logger("agents.common")
 
 _llm_cache: Dict[str, Any] = {}
 
@@ -108,12 +111,15 @@ def retrieve_case_context(
     except Exception as e:
         cases = []
         warnings.append(f"retrieval_failed: {e}")
+        logger.error(f"[{domain.upper()}] Case retrieval failed: {e}", exc_info=True)
 
     if cases:
         case_text = "\n\n".join([_format_case_for_prompt(case, i + 1) for i, case in enumerate(cases)])
+        logger.info(f"[{domain.upper()}] Retrieved {len(cases)} relevant cases")
     else:
         case_text = "No relevant cases found in dataset."
         warnings.append("no_similar_cases")
+        logger.warning(f"[{domain.upper()}] No similar cases found for query")
 
     return cases, case_text, warnings
 
@@ -463,6 +469,7 @@ def run_llm_with_tools(
     from app.tools.tool_executor import execute_tool_call
 
     if not tools:
+        logger.info(f"[{agent_name}] Running LLM inference (no tools bound)")
         response = llm.invoke(prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
 
@@ -473,16 +480,20 @@ def run_llm_with_tools(
     # Harmony's JSON-constraint mechanism, not a matter of whether a tool
     # call happens at all. See _recover_json_tool_error for the actual fix.
     try:
+        logger.info(f"[{agent_name}] Running LLM inference with {len(tools)} tools: {[t.name for t in tools]}")
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
         ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
     except Exception as e:
         if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
+            logger.warning(f"[{agent_name}] Tool calling not supported by provider ({e}), falling back to direct prompt")
             response = llm.invoke(prompt)
             return _normalize_content(getattr(response, "content", str(response))), [], response
+        logger.error(f"[{agent_name}] Error during tool-bound LLM invocation: {e}", exc_info=True)
         raise e
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
+        logger.info(f"[{agent_name}] Model decided not to call any tools; returning direct answer")
         return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message
 
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
@@ -492,6 +503,7 @@ def run_llm_with_tools(
         tool_name = call.get("name")
         args = call.get("args", {}) or {}
 
+        logger.info(f"[{agent_name}] Executing tool call '{tool_name}' with args: {args}")
         result = execute_tool_call(agent_name, tool_name, args)
         used_tools.append(tool_name)
 
@@ -500,9 +512,11 @@ def run_llm_with_tools(
             if result.get("status") == "success"
             else f"Tool error: {result.get('message')}"
         )
+        logger.info(f"[{agent_name}] Tool '{tool_name}' returned status={result.get('status')}")
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
 
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
+    logger.info(f"[{agent_name}] Synthesizing final answer after {len(used_tools)} tool call(s)")
     final_message = llm.invoke(messages)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
