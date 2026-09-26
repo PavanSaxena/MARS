@@ -1,4 +1,5 @@
 import re
+import time
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -150,18 +151,52 @@ def query_system(request: QueryRequest):
                 detail=f"Model '{request.model}' requires a {provider.upper()}_API_KEY to be set in .env.",
             )
 
+    logger.info(
+        "query_received thread_id=%s model=%s query=%r",
+        request.thread_id,
+        request.model or "default",
+        request.query[:120],
+    )
 
+    t_start = time.perf_counter()
     try:
         raw_result, retrieved_cases = run_graph(user_input=request.query, thread_id=request.thread_id, model=request.model)
     except Exception as exc:
+        elapsed = round(time.perf_counter() - t_start, 3)
         if is_rate_limit_error(exc):
+            logger.warning(
+                "query_rate_limited thread_id=%s duration_s=%.3f",
+                request.thread_id,
+                elapsed,
+            )
             raw_result = format_rate_limit_error(exc, model_name=request.model)
             retrieved_cases = {}
         else:
+            logger.exception(
+                "query_failed thread_id=%s duration_s=%.3f query=%r",
+                request.thread_id,
+                elapsed,
+                request.query[:120],
+            )
             raise exc
 
+    elapsed = round(time.perf_counter() - t_start, 3)
     structured = parse_result(raw_result)
     structured["retrieved_cases"] = retrieved_cases or None
+
+    dept_case_counts = {
+        dept: len(cases)
+        for dept, cases in (retrieved_cases or {}).items()
+    }
+    logger.info(
+        "query_completed thread_id=%s duration_s=%.3f "
+        "insights=%d conflicts=%d cases_by_dept=%s",
+        request.thread_id,
+        elapsed,
+        len(structured.get("key_insights", [])),
+        len(structured.get("conflicts", [])),
+        dept_case_counts or "none",
+    )
 
     return structured
 
