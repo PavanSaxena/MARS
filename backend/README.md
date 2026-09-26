@@ -1,67 +1,81 @@
 # MARS Backend
 
-FastAPI + LangGraph multi-agent decision system. Given a strategic business query, MARS fans out to four department agents (Finance, R&D, Legal, Operations) in parallel, retrieves similar historical cases per department directly from **Supabase (pgvector)**, then aggregates all four assessments into one final decision with an explainability trail.
+FastAPI + LangGraph multi-agent decision system. Given a strategic business query, MARS classifies user intent, routes conversational messages to a chat agent, or fans out to four department agents (Finance, R&D, Legal, Operations) in parallel. Each department agent retrieves relevant historical cases directly from **Supabase (pgvector)**, scores and reranks them with MMR diversity filtering, executes MCP tools where needed, and feeds into an aggregator node that synthesizes a final strategic recommendation with complete explainability.
 
 ---
 
 ## Architecture
 
 ```
-User Query
-    │
-    ▼
-┌──────────┐
-│  Master  │  (entry / router node)
-└──────────┘
-    │ fan-out (parallel)
-    ├──────────────┬──────────────┬──────────────┐
-    ▼              ▼              ▼              ▼
-┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────────┐
-│ Finance │  │   R&D   │  │  Legal  │  │ Operations │
-└─────────┘  └─────────┘  └─────────┘  └────────────┘
-    │              │              │              │
-    └──────────────┴──────────────┴──────────────┘
-                        │ fan-in
-                        ▼
-                 ┌────────────┐
-                 │ Aggregator │  (ranks by confidence, resolves conflicts, explains)
-                 └────────────┘
+                    User Query
                         │
                         ▼
-                  Final Decision
+                ┌───────────────┐
+                │ Intent Router │  (classifies: "pipeline" vs "chat")
+                └───────┬───────┘
+                        │
+         ┌──────────────┴──────────────┐
+         │ [pipeline]                  │ [chat]
+         ▼                             ▼
+  ┌──────────────┐              ┌──────────────┐
+  │ Master Router│ (fan-out)    │  Chat Agent  │ ──► Conversation Response
+  └──────┬───────┘              └──────────────┘
+         │
+ ┌───────┼──────────────┬──────────────┐
+ ▼       ▼              ▼              ▼
+┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────────┐
+│ Finance │  │   R&D   │  │  Legal  │  │ Operations │
+└────┬────┘  └────┬────┘  └────┬────┘  └─────┬──────┘
+     │            │            │             │
+     └────────────┴──────┬─────┴─────────────┘
+                         │ fan-in
+                         ▼
+                  ┌────────────┐
+                  │ Aggregator │  (confidence ranking, conflict resolution, explainability)
+                  └─────┬──────┘
+                        │
+                        ▼
+                  Final Strategic Decision
 ```
 
-Each department agent:
-1. Embeds the query with `all-MiniLM-L6-v2`
-2. Retrieves the top-5 most similar historical decisions directly from Supabase via the `match_decisions` Postgres function (pgvector cosine similarity, filtered by department), each already joined with its recorded outcome
-3. Sends the query + cases to `llama-3.3-70b-versatile` (via Groq) with its two department-specific tools bound (see **Tooling Layer** below). The model decides whether it needs a tool; if it calls one, the tool executes and its result is fed back for a second, final LLM call
-4. Returns `{response, reasoning, confidence, num_cases_retrieved, avg_similarity, historical_success_rate, case_based_confidence, tools_used, explanation}` into the shared LangGraph state
+### Turn Lifecycle & Retrieval Pipeline
+
+1. **Intent Classification (`router.py`)**:
+   - Queries are evaluated for conversational context vs. full strategic decision requests.
+   - Follow-up questions, clarifications, and conversational inquiries route to `chat_agent`, preserving conversation history without unnecessarily re-running all 4 agents.
+   - Complex business/investment queries route to the multi-agent decision pipeline.
+
+2. **Precedent Retrieval & Contextual Reranking (`case_retrieval_service.py`)**:
+   - **Candidate Pool:** Fetches top candidate cases (default: 25) from Supabase via `match_decisions` pgvector cosine similarity.
+   - **Composite Scoring:** Combines dense vector similarity with tokenized lexical matching across titles, triggers, and rationales.
+   - **Relevance Floor:** Drops candidates below `RETRIEVAL_SIMILARITY_FLOOR` (default: 0.25).
+   - **Maximal Marginal Relevance (MMR):** Selects between 3 and 10 diverse cases (`RETRIEVAL_MIN_CASES` to `RETRIEVAL_MAX_CASES`) using `RETRIEVAL_MMR_LAMBDA` (0.65) to eliminate redundant precedents.
+
+3. **Agent Deliberation & Tool Execution**:
+   - Each department agent runs with its specialized system prompt, retrieved precedents, and two department-specific tools bound over the **Model Context Protocol (MCP)**.
+   - The LLM decides whether a tool invocation is warranted. If requested, tools execute via MCP and results feed back into a follow-up completion.
+   - Returns `{response, reasoning, confidence, num_cases_retrieved, avg_similarity, historical_success_rate, tools_used, explanation}` into graph state.
+
+4. **Strategic Aggregator (`aggregator.py`)**:
+   - Collects all four department outputs.
+   - Ranks departments by reported confidence (Legal > Finance > Operations > R&D serves as a tiebreaker).
+   - Synthesizes findings, identifies inter-departmental conflicts, and delivers an evidence-grounded final decision with complete per-department explainability.
+
+---
 
 ### Tooling Layer (MCP)
 
-Department tools are served over a real **Model Context Protocol** server (`app/mcp/server.py`, built with the official `mcp` SDK's `FastMCP`), not imported as local Python functions. `app/mcp/client.py` spawns it once as a subprocess over stdio (`python -m app.mcp.server`) the first time any agent needs a tool, keeps that one session alive for the life of the backend process, and exposes it to the rest of the codebase as plain sync calls — `get_langchain_tools_sync()` for schema discovery and `call_tool_sync(name, args)` for execution. Because it's a standard MCP server, any other MCP-compatible client (Claude Desktop, another service) could talk to the same tools without changes.
+Department tools are served over a real **Model Context Protocol** server (`app/mcp/server.py`, built with `FastMCP`). `app/mcp/client.py` maintains an active session over stdio subprocess (`python -m app.mcp.server`), exposing sync helpers `get_langchain_tools_sync()` and `call_tool_sync(name, args)` to the agents.
 
-`app/tools/tool_registry.py` and `app/tools/tool_executor.py` no longer hold any tool logic — they're a thin allowlist + execution bridge on top of the MCP client:
-
-| Agent | Tools | Source |
+| Agent | Tools | Data Source |
 |---|---|---|
-| Finance | `FinancialDataTool`, `MarketAnalysisTool` | Supabase `decisions`/`outcomes` aggregate / live Tavily web search |
-| R&D | `ResearchDatabaseTool`, `ExperimentTrackerTool` | Supabase `decisions`/`outcomes` aggregate |
-| Legal | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decisions`/`outcomes` aggregate |
-| Operations | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decisions`/`outcomes` aggregate / live Tavily web search |
+| **Finance** | `FinancialDataTool`, `MarketAnalysisTool` | Supabase `decisions`/`outcomes` aggregate / Live Tavily web search |
+| **R&D** | `ResearchDatabaseTool`, `ExperimentTrackerTool` | Supabase `decisions`/`outcomes` aggregate |
+| **Legal** | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decisions`/`outcomes` aggregate |
+| **Operations** | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decisions`/`outcomes` aggregate / Live Tavily web search |
 
-- **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) query `decisions` joined with `outcomes` for a department-level snapshot (action-type breakdown, most recent cases and what happened to them) — a plain filtered query, separate from the pgvector similarity search used for case retrieval.
-- **External tools** (`MarketAnalysisTool`, `LegalDatabaseTool`, `SupplyChainAnalyzerTool`) run a live Tavily web search. If `TAVILY_API_KEY` isn't set, they return a clear "unavailable" message instead of failing.
-
-The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`, where the bound tools now come from `app/tools/tool_registry.py:get_tool_objects_for_agent`, which in turn calls `app/mcp/client.py:get_langchain_tools_sync` and filters to that agent's allowlist. If the LLM calls one, `app/tools/tool_executor.py:execute_tool_call` re-checks the same allowlist, then forwards the call to `app/mcp/client.py:call_tool_sync` — a real MCP `CallToolRequest` round trip to the server subprocess — and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
-
-For manual inspection, the MCP server can be run standalone: `python -m app.mcp.server` (stdio transport — pair it with any MCP inspector/client).
-
-> **Note on confidence:** `confidence` is the LLM's own self-reported score. `case_based_confidence` is a **placeholder** for a planned multi-factor score (`similarity + recency + past_success`) — the weighting formula is still being researched, so this field is currently always `null`. See `app/reasoning/confidence.py`.
-
-The Aggregator ranks departments by their reported confidence (highest first), uses a fixed priority order (Legal > Finance > Operations > R&D) only as a tiebreaker, and appends a per-department explainability trail to the final output.
-
-**There is no separate vector database.** Decision data and its embeddings both live in Supabase — decisions are stored in the `decisions` table (Postgres), and a `vector` column on that same table (via the `pgvector` extension) is queried directly for similarity search. Outcomes live in a separate `outcomes` table (one row per `decisions.case_id`), joined in server-side by the `match_decisions` RPC.
+- **Internal tools** perform direct relational queries on `decisions` and `outcomes` for departmental action-type distributions and historical success rates.
+- **External search tools** invoke Tavily web search when `TAVILY_API_KEY` is present, or return a graceful fallback status if unconfigured.
 
 ---
 
@@ -69,155 +83,188 @@ The Aggregator ranks departments by their reported confidence (highest first), u
 
 ```
 backend/
-├── main.py                          # FastAPI app entry point (CORS, router)
+├── main.py                          # FastAPI app entry point (middleware, routers, CLI demo)
 ├── requirements.txt
 ├── pyproject.toml
-├── .env                              # not committed — see .env.example
+├── Dockerfile
+├── docker-compose.yml
+├── .env                              # Application environment variables (not committed)
 ├── .env.example
 ├── sql/
-│   └── 001_setup.sql              # ONE-TIME: run in Supabase's SQL editor
+│   └── 001_setup.sql                 # One-time Supabase setup: pgvector, tables, RPCs, RLS
 │
 └── app/
     ├── state.py                      # Shared LangGraph State (TypedDict)
     │
     ├── core/
-    │   └── config.py                 # Centralized settings (env vars), loaded once
+    │   ├── config.py                 # Centralized pydantic settings & provider sync
+    │   ├── errors.py                 # Provider rate limit handling & error formatting
+    │   └── logging_config.py
     │
     ├── agents/
-    │   ├── master_agent.py           # Graph builder + run_graph()
-    │   ├── common.py                 # Shared helpers: prompt building, output parsing, case evidence
+    │   ├── router.py                 # Intent classifier (pipeline vs chat routing)
+    │   ├── master_agent.py           # LangGraph workflow builder, runner, and checkpointer
+    │   ├── chat_agent.py             # Conversational follow-up agent
+    │   ├── common.py                 # Shared prompt builders, parsers, LLM client cache
     │   ├── finance_agent.py
     │   ├── rd_agent.py
     │   ├── legal_agent.py
     │   └── operations_agent.py
     │
     ├── reasoning/
-    │   ├── aggregator.py             # Confidence-ranked aggregator node
-    │   ├── confidence.py             # Multi-factor confidence — PLACEHOLDER, returns None
-    │   ├── similarity.py             # Average vector similarity
-    │   ├── outcome_analysis.py       # Historical success rate
-    │   └── explainability.py         # Human-readable explanation generator
+    │   ├── aggregator.py             # Confidence-ranked strategic aggregator node
+    │   ├── confidence.py             # Multi-factor confidence scoring algorithms
+    │   ├── similarity.py             # Vector similarity calculations
+    │   ├── outcome_analysis.py       # Empirical success rate analysis
+    │   └── explainability.py         # Human-readable audit trail generator
     │
     ├── services/
-    │   ├── supabase_client.py        # Shared Supabase client (singleton)
-    │   └── case_retrieval_service.py # get_similar_cases() + CaseRetrievalService
+    │   ├── supabase_client.py        # Reusable Supabase client singleton
+    │   └── case_retrieval_service.py # MMR diversity retrieval & candidate scoring
     │
     ├── storage/
-    │   ├── embedder.py                    # get_embedding() / get_embeddings()
-    │   ├── retriever.py                   # retrieve_cases() — calls match_decisions RPC
-    │   └── sync_decisions_to_supabase.py  # Imports dataset/ CSVs + writes embeddings into Supabase
+    │   ├── embedder.py               # Local SentenceTransformer (all-MiniLM-L6-v2) embeddings
+    │   ├── retriever.py              # pgvector RPC invocation interface
+    │   └── sync_decisions_to_supabase.py # Dataset CSV importer with batched embedding upsert
     │
     ├── mcp/
-    │   ├── server.py                  # Real MCP server (FastMCP) — the 8 tool implementations live here
-    │   └── client.py                  # Owns the server subprocess/session; get_langchain_tools_sync() + call_tool_sync()
+    │   ├── server.py                 # FastMCP server exposing the 8 departmental tools
+    │   └── client.py                 # Client managing MCP subprocess communication
     │
     ├── tools/
-    │   ├── tool_executor.py           # execute_tool_call() — allowlist check + forwards to app.mcp.client
-    │   └── tool_registry.py           # Per-agent tool allowlist + get_tool_objects_for_agent()
+    │   ├── tool_executor.py          # Allowlist enforcement & execution dispatcher
+    │   └── tool_registry.py          # Per-agent tool allowlists & schema provider
     │
     └── api/
-        └── routes.py                 # POST /api/query
+        ├── routes.py                 # Native REST API (/api/query, /api/models, /api/threads)
+        └── openai_compat.py          # OpenAI-compatible /v1/chat/completions for Open WebUI
 ```
 
 ---
 
-## Setup
+## Setup & Installation
 
-> **Docker users:** if you're running via `docker compose up` (see the top-level [README](../README.md)), step 1 below is handled for you by the `Dockerfile` — you still need to do steps 2–4 yourself. `docker compose exec mars-backend python -m app.storage.sync_decisions_to_supabase` runs step 4 inside the running container.
-
-### 1. Install dependencies
+### 1. Install Dependencies
 
 ```bash
 cd backend
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment variables
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Then fill in:
+Configure your credentials in `.env`:
 
 ```env
+# Supabase (Source of Truth & pgvector)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_service_role_key
+
+# Model Providers
 GROQ_API_KEY=your_groq_api_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_anon_key
-TAVILY_API_KEY=your_tavily_api_key   # optional — powers MarketAnalysisTool, LegalDatabaseTool,
-                                      # SupplyChainAnalyzerTool. Without it those three tools
-                                      # just return an "unavailable" message instead of failing.
+GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Search Tools (Optional)
+TAVILY_API_KEY=your_tavily_api_key
+
+# Retrieval Hyperparameters (Optional - defaults shown)
+RETRIEVAL_CANDIDATE_COUNT=25
+RETRIEVAL_MIN_CASES=3
+RETRIEVAL_MAX_CASES=10
+RETRIEVAL_SIMILARITY_FLOOR=0.25
+RETRIEVAL_MMR_LAMBDA=0.65
 ```
 
-All settings are loaded once via `app/core/config.py` — see that file for the full list and defaults.
+### 3. One-Time Database Setup
 
-### 3. One-time Supabase setup (pgvector)
+Execute `sql/001_setup.sql` in the Supabase SQL Editor. This script:
+- Enables the `vector` extension.
+- Creates `decisions` (with `embedding vector(384)`) and `outcomes` relational tables.
+- Creates an HNSW vector index for cosine similarity search.
+- Defines the `match_decisions` similarity-search stored procedure and chronology verification triggers.
 
-Open the Supabase SQL editor for your project and run `sql/001_setup.sql`. It:
-
-- Enables the `pgvector` extension
-- Creates `decisions` (18 columns: title, description, documented action, action type, rationale, quantitative signals, department, tags, cross-department impact, an `embedding vector(384)` column — 384 = `all-MiniLM-L6-v2`'s output size — and more) and `outcomes` (one row per `decisions.case_id`, with `outcome_label`, `observation_date`, and the observed evidence)
-- Creates an `hnsw` index on `decisions.embedding` for fast approximate nearest-neighbour search
-- Creates a trigger enforcing that every outcome's `observation_date` is strictly after its decision's `decision_date`
-- Creates the `match_decisions` Postgres function that `app/storage/retriever.py` calls via `supabase.rpc(...)`, and the `bulk_update_decision_embeddings` / `get_decisions_corpus_summary` helper functions
-- Enables row-level security: anyone can read, only the `service_role` key can write
-
-### 4. Import the dataset and compute embeddings
+### 4. Ingest Dataset & Generate Embeddings
 
 ```bash
 python -m app.storage.sync_decisions_to_supabase
 ```
 
-This reads `dataset/Decisions/decisions.csv` and `dataset/Outcome/outcomes.csv`, computes an embedding for every decision, and upserts both tables by `case_id` — all in one pass. Requires `SUPABASE_KEY` to be a service_role key (see step 3's RLS note). Re-run any time the dataset changes.
+This parses `dataset/Decisions/decisions.csv` and `dataset/Outcome/outcomes.csv`, embeds all cases with `all-MiniLM-L6-v2`, and upserts them to Supabase in batches.
 
-### 5. Run the API server
+### 5. Run the Server
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-
-The API is available at `http://localhost:8000`.
 
 ---
 
-## Model Switching
+## Model Selection & Runtime Switching
 
-Every LLM call (all 4 department agents + the aggregator) goes through `app.agents.common.get_llm(model_id)`, so which model is used is a per-request choice, not a hardcoded one. Model ids are `"<provider>:<model>"` strings, matching LangChain's `init_chat_model()` convention — e.g. `openai:gpt-5.6-terra` or `anthropic:claude-sonnet-5` once those providers are added below. Only models actually listed in `settings.AVAILABLE_MODELS` (`app/core/config.py`) are usable — right now that's the three Groq models shown there; add an OpenAI/Anthropic entry to that list (and set the matching API key) to enable it.
+All agents instantiate models dynamically via LangChain's `init_chat_model()` inside `app/agents/common.py:get_llm(model_id)`.
 
-Each provider needs its own key in `.env` (`GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) — only set the ones for models you actually want available. `GET /api/models` tells you which configured models are actually usable right now vs. blocked on a missing key.
+Supported model IDs:
+- `ollama:qwen2.5:3b` *(default — local zero-cost inference)*
+- `google_genai:gemini-3.8-flash`
+- `groq:qwen/qwen3.8-27b`
+- `groq:openai/gpt-oss-120b`
+- `groq:openai/gpt-oss-20b`
 
-**Context carries over automatically.** Model choice is stored in the LangGraph state alongside the message history, both checkpointed per `thread_id`. If a request omits `model`, the thread's previously-selected model (or `DEFAULT_MODEL` for a brand-new thread) is reused — you only need to pass `model` on the turn where the user actually switches it.
+Model preference is saved in LangGraph memory checkpoints per `thread_id`. If `model` is omitted in subsequent queries within the same thread, the thread's active model is automatically preserved.
 
-- `GET /api/models` — list available models, the default, and which ones are currently unusable (missing API key).
-- `GET /api/threads/{thread_id}/model` — the model currently active for a thread (e.g. to restore a switcher's state after reload).
-- `POST /api/query` — pass `model` to switch (or start) a thread on a specific model; omit it to keep using whatever that thread was already on.
+---
 
+## API Documentation
+
+### Native REST API (`/api`)
+
+#### 1. Strategic Decision Query
 ```bash
-curl -s -X POST http://127.0.0.1:8000/api/query \
+curl -X POST http://localhost:8000/api/query \
   -H "Content-Type: application/json" \
-  -d '{"query": "Should we invest in X?", "thread_id": "t1", "model": "groq:openai/gpt-oss-20b"}' | jq
+  -d '{
+    "query": "Should we invest in expanding dual-sourcing for critical hardware components this quarter?",
+    "thread_id": "session-1",
+    "model": "google_genai:gemini-3.8-flash"
+  }'
 ```
 
-## API Usage
-
-### `POST /api/query`
-
-```bash
-curl -s -X POST http://127.0.0.1:8000/api/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Should we invest in an AI-driven supply chain optimization initiative this quarter?", "thread_id": "test-1"}' | jq
-```
-
-`model` is optional here too — see **Model Switching** above.
-
-**Response:**
+**Response Schema:**
 ```json
 {
-  "key_insights": ["string", "..."],
-  "conflicts": ["string", "..."],
-  "final_decision": { "decision": "string" },
-  "explainability": "string | null"
+  "key_insights": [
+    "Operations indicates supply disruption risks can be mitigated via secondary suppliers."
+  ],
+  "conflicts": [
+    "Finance notes upfront qualification costs; Legal recommends accelerated compliance audits."
+  ],
+  "final_decision": {
+    "decision": "Proceed with dual-sourcing for tier-1 components subject to margin thresholds."
+  },
+  "explainability": "[Finance]\nFound 3 relevant historical cases...\n[Operations]\n...",
+  "retrieved_cases": {
+    "Operations": [
+      {
+        "document": "...",
+        "metadata": { "case_id": "1031", "similarity": 0.68 }
+      }
+    ]
+  }
 }
 ```
 
-`explainability` contains one block per department (retrieved case count, historical outcomes observed, and the case-based confidence placeholder note).
+#### 2. Models Discovery
+- `GET /api/models` — Returns supported models and identifies which are currently available based on configured API keys.
+- `GET /api/threads/{thread_id}/model` — Returns the model configured for a given thread.
+
+### OpenAI-Compatible API (`/v1`)
+
+MARS exposes full OpenAI-compatible chat endpoints (`/v1/chat/completions` and `/v1/models`) designed for instant integration with **Open WebUI**, LangChain, or any OpenAI SDK client.
