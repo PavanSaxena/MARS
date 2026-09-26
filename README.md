@@ -1,32 +1,39 @@
 # MARS — Multi-Agent Reasoning System
 
-A multi-agent AI decision system built with **LangGraph**, **LangChain**, **Supabase (pgvector)**, and **FastAPI**, with **Open WebUI** as the chat frontend.
+A multi-agent AI strategic decision system built with **LangGraph**, **LangChain**, **Supabase (pgvector)**, and **FastAPI**, with **Open WebUI** as the chat frontend.
 
-Given a strategic business query, MARS fans out to four specialist agents (Finance, R&D, Legal, Operations) in parallel — each grounding its answer in similar historical cases retrieved from Supabase and, where relevant, live tool calls — then aggregates the four assessments into a single recommendation with a full explainability trail.
+Given a strategic business query, MARS classifies user intent and either routes conversational follow-ups to a contextual chat agent or fans out to four department specialist agents (Finance, R&D, Legal, Operations) in parallel. Each department agent grounds its reasoning in similar historical cases retrieved from Supabase and live tool executions, followed by aggregation into an evidence-backed recommendation with complete explainability.
 
 ```
-User Query
-    │
-    ▼
-┌──────────┐
-│  Master  │  (entry / router node)
-└──────────┘
-    │ fan-out (parallel)
-    ├──────────────┬──────────────┬──────────────┐
-    ▼              ▼              ▼              ▼
-┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────────┐
-│ Finance │  │   R&D   │  │  Legal  │  │ Operations │
-└─────────┘  └─────────┘  └─────────┘  └────────────┘
-    │              │              │              │
-    └──────────────┴──────────────┴──────────────┘
-                        │ fan-in
-                        ▼
-                 ┌────────────┐
-                 │ Aggregator │  (ranks by confidence, resolves conflicts, explains)
-                 └────────────┘
+                    User Query
                         │
                         ▼
-                  Final Decision
+                ┌───────────────┐
+                │ Intent Router │  (classifies: "pipeline" vs "chat")
+                └───────┬───────┘
+                        │
+         ┌──────────────┴──────────────┐
+         │ [pipeline]                  │ [chat]
+         ▼                             ▼
+  ┌──────────────┐              ┌──────────────┐
+  │ Master Router│ (fan-out)    │  Chat Agent  │ ──► Conversation Response
+  └──────┬───────┘              └──────────────┘
+         │
+ ┌───────┼──────────────┬──────────────┐
+ ▼       ▼              ▼              ▼
+┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────────┐
+│ Finance │  │   R&D   │  │  Legal  │  │ Operations │
+└────┬────┘  └────┬────┘  └────┬────┘  └─────┬──────┘
+     │            │            │             │
+     └────────────┴──────┬─────┴─────────────┘
+                         │ fan-in
+                         ▼
+                  ┌────────────┐
+                  │ Aggregator │  (confidence ranking, conflict resolution, explainability)
+                  └─────┬──────┘
+                        │
+                        ▼
+                  Final Strategic Decision
 ```
 
 ---
@@ -35,20 +42,25 @@ User Query
 
 ```
 .
-├── backend/              # FastAPI + LangGraph multi-agent system (see backend/README.md)
-│   ├── Dockerfile
-│   ├── docker-compose.yml   # backend + Open WebUI
-│   └── ...
+├── backend/                  # FastAPI + LangGraph multi-agent system (see backend/README.md)
+│   ├── app/                  # Application code (agents, reasoning, tools, storage, API)
+│   ├── sql/                  # pgvector & schema setup scripts (001 & 002)
+│   ├── Dockerfile            # Container definition (PyTorch CPU + dependencies)
+│   ├── docker-compose.yml    # Backend + Open WebUI stack
+│   └── requirements.txt
+│
+├── Dataset/                  # Enterprise decision cases corpus
+│
 └── .gitignore
 ```
 
-There's no separate `frontend/` — the UI is [Open WebUI](https://github.com/open-webui/open-webui), run as its own container and pointed at MARS's OpenAI-compatible API (`backend/app/api/openai_compat.py`). Nothing custom to build or maintain there.
+There is no separate custom frontend codebase needed — the chat interface is [Open WebUI](https://github.com/open-webui/open-webui), deployed via container and connected to MARS's native OpenAI-compatible API (`backend/app/api/openai_compat.py`).
 
 ---
 
 ## Quick Start (Docker)
 
-This is the recommended way to run MARS — it brings up the backend and the chat UI together.
+This is the recommended way to run MARS — it brings up the backend and Open WebUI together.
 
 ```bash
 cd backend
@@ -58,20 +70,19 @@ docker compose up --build
 
 Then run the one-time Supabase setup (see **Supabase Setup** below) before sending your first query.
 
-Once it's up:
+Once up:
 
 | Service | URL | Purpose |
 |---|---|---|
-| **Open WebUI** | `http://localhost:3000` | Chat UI — open this in your browser |
-| MARS backend | `http://localhost:8000` | Native API + `/v1/*` OpenAI-compatible routes (not meant to be browsed directly) |
+| **Open WebUI** | `http://localhost:5001` | Chat UI — open in your browser (`WEBUI_AUTH=false` pre-configured) |
+| **MARS Backend** | `http://localhost:8000` | Native REST API (`/api/*`) + OpenAI-compatible API (`/v1/*`) |
 
-Open WebUI is pre-wired to the backend via `OPENAI_API_BASE_URL=http://mars-backend:8000/v1` in `docker-compose.yml`, so no manual connection setup should be needed. If its model dropdown comes back empty, it means none of `settings.AVAILABLE_MODELS` (`backend/app/core/config.py`) has a matching provider API key set in `.env` — `GET /v1/models` only advertises models it can actually call.
+Open WebUI connects automatically to the backend container over `OPENAI_API_BASE_URL=http://mars-backend:8000/v1`. Authentication is disabled (`WEBUI_AUTH=false`), allowing instant access without account setup.
 
-### Notes on the Docker build
+### Docker Build Notes
 
-- The image installs a **CPU-only build of `torch`** (via PyTorch's own CPU wheel index) rather than the default PyPI wheel, which bundles CUDA and is 2GB+ larger than needed — MARS only uses `torch` to run a small local embedding model (`all-MiniLM-L6-v2`), not GPU training/inference.
-- `torch` + `transformers` + `sentence-transformers` still add up to a multi-GB image. If the build fails with `No space left on device`, that's disk space on the Docker host/VM, not the app — run `docker system prune -a --volumes` to reclaim space, and on Docker Desktop check **Settings → Resources → Advanced → Disk image size**. On Linux, confirm `df -h /` isn't full — Docker's storage (`/var/lib/docker` by default) lives on the root partition unless you've configured `data-root` elsewhere in `/etc/docker/daemon.json`.
-- Secrets in `.env` are never baked into the image — `.dockerignore` excludes it from the build context, and `docker-compose.yml` mounts it in at runtime via `env_file`.
+- Installs a **CPU-only build of `torch`** (via PyTorch's official CPU wheel index) to keep image size small for local embedding generation (`all-MiniLM-L6-v2`).
+- Secrets in `.env` are excluded from image layers via `.dockerignore` and mounted securely at runtime.
 
 ---
 
@@ -81,32 +92,34 @@ For local development on the backend without containers, see **[backend/README.m
 
 ```bash
 cd backend
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # fill in credentials
 uvicorn main:app --reload
 ```
 
-You'll still need a frontend to talk to it — either point Open WebUI's own container at `http://localhost:8000/v1` (adjust `OPENAI_API_BASE_URL` accordingly if running it standalone), or call `POST /api/query` directly (see backend README).
+You can interact with it via Open WebUI pointed at `http://localhost:8000/v1` or by calling `POST /api/query` directly.
 
 ---
 
-## Supabase Setup (one-time)
+## Supabase Setup (One-Time)
 
-MARS uses Supabase both as the source-of-truth database and as the vector store (via the `pgvector` extension) — there's no separate vector DB to keep in sync.
+MARS uses Supabase both as the source-of-truth database and as the vector store (via the `pgvector` extension) on the `decision_cases` table:
 
-In your Supabase project's SQL editor, run, in order:
+In your Supabase project's SQL editor, run in order:
 
-1. `backend/sql/001_pgvector_setup.sql` — enables `pgvector`, adds the `embedding` column to `decision_cases`, creates the similarity-search function.
-2. `backend/sql/002_bulk_update_embeddings.sql` — creates the batched-write function used to backfill embeddings.
+1. `backend/sql/001_pgvector_setup.sql` — enables `pgvector`, adds the `embedding` column (`vector(384)`) to `decision_cases`, and creates the `match_decision_cases` similarity-search function.
+2. `backend/sql/002_bulk_update_embeddings.sql` — creates the `bulk_update_case_embeddings` function used to backfill embeddings in batches.
 
-Then backfill embeddings for any existing case rows:
+Then backfill embeddings for your case rows:
 
 ```bash
 # from backend/, with dependencies installed locally, or via `docker compose exec mars-backend`
 python -m app.storage.index_cases
 ```
 
-Re-run this any time you add or edit rows in `decision_cases` — there's no trigger that does it automatically.
+Re-run this command any time rows in `decision_cases` are added or updated.
 
 ---
 
@@ -123,22 +136,34 @@ SUPABASE_KEY=your_supabase_anon_key
 Optional:
 
 ```env
-TAVILY_API_KEY=your_tavily_api_key       # powers 3 live-search tools; without it they return "unavailable"
+TAVILY_API_KEY=your_tavily_api_key       # powers live web-search tools; returns graceful fallback without it
 OPENAI_API_KEY=your_openai_api_key       # only needed to enable openai:* models
 ANTHROPIC_API_KEY=your_anthropic_api_key # only needed to enable anthropic:* models
 SUPABASE_CASES_TABLE=decision_cases
 API_HOST=0.0.0.0
 API_PORT=8000
+
+# Retrieval & Contextual Reranking Hyperparameters
+RETRIEVAL_CANDIDATE_COUNT=25
+RETRIEVAL_MIN_CASES=3
+RETRIEVAL_MAX_CASES=10
+RETRIEVAL_SIMILARITY_FLOOR=0.25
+RETRIEVAL_MMR_LAMBDA=0.65
 ```
 
-See `backend/README.md` for the full list, model-switching details, and the tooling layer.
+### Supported Models
+
+MARS supports dynamic runtime model switching via LangChain `init_chat_model()`:
+- `groq:openai/gpt-oss-120b` *(default)*
+- `groq:openai/gpt-oss-20b`
+- `groq:qwen/qwen3.6-27b`
 
 ---
 
 ## Learn More
 
 See **[backend/README.md](backend/README.md)** for:
-- Full architecture and per-agent tooling layer
+- Full architecture, intent routing, and per-agent MCP tooling layer
+- Contextual reranking and MMR diversity filtering mechanics
 - Project structure
-- Model switching across Groq / OpenAI / Anthropic
-- Native `POST /api/query` and `GET /api/models` usage
+- Native `POST /api/query` and `GET /api/models` documentation
