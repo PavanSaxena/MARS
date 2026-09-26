@@ -59,10 +59,11 @@ class Settings(BaseSettings):
     RETRIEVAL_SIMILARITY_FLOOR: float = 0.25  # Soft floor to eliminate zero/unrelated noise
     RETRIEVAL_MMR_LAMBDA: float = 0.65   # Balance between relevance (1.0) and diversity (0.0)
 
-    # API
+    # API & Logging
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    LOG_LEVEL: str = "INFO"
 
     def api_key_for_model(self, model_id: str) -> Optional[str]:
         """Return the configured API key for a model's provider, or None."""

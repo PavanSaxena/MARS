@@ -35,6 +35,9 @@ from pydantic import BaseModel
 from app.agents.master_agent import run_graph
 from app.api.routes import parse_result
 from app.core.config import settings
+from app.core.logging_config import get_logger
+
+logger = get_logger("api.openai_compat")
 
 router = APIRouter()
 
@@ -148,42 +151,64 @@ def _format_markdown(structured: dict[str, Any]) -> str:
         parts.append(f"**Notes:** {fd['notes']}")
 
     if structured.get("key_insights"):
-        bullets = "\n".join(f"- {i}" for i in structured["key_insights"])
-        parts.append(f"### Key Insights\n{bullets}")
+        bullets = "\n".join(
+            i.strip() if i.strip().startswith(("-", "*", "|")) else f"- {i.strip()}"
+            for i in structured["key_insights"]
+        )
+        parts.append(f"### Key Insights\n\n{bullets}")
 
     if structured.get("conflicts"):
-        bullets = "\n".join(f"- {c}" for c in structured["conflicts"])
-        parts.append(f"### Conflicts\n{bullets}")
+        formatted_conflicts = []
+        for c in structured["conflicts"]:
+            c_str = c.strip()
+            if c_str.startswith("|"):
+                formatted_conflicts.append(c_str)
+            else:
+                formatted_conflicts.append(f"- {c_str}")
+        conflicts_text = "\n".join(formatted_conflicts)
+        parts.append(f"### Conflicts\n\n{conflicts_text}")
 
     if structured.get("explainability"):
         # "[Finance]\n...text..." -> "#### Finance\n...text..." so each
         # department renders as its own subheading instead of plain
         # bracketed text sitting in one undifferentiated block.
         body = _DEPT_MARKER_RE.sub(r"#### \1", structured["explainability"].strip())
-        parts.append(f"### Explainability\n{body}")
+        parts.append(
+            "<details>\n"
+            "<summary>Explainability by Department (click to expand)</summary>\n\n"
+            f"{body}\n\n"
+            "</details>"
+        )
 
     return "\n\n".join(parts) if parts else "The model did not return a decision."
 
 
 def _format_evidence_block(retrieved_cases: dict) -> str:
     """Render the per-department retrieved cases as a collapsible markdown
-    section. Each case shows its ID, quarter, similarity score, risk level,
+    section. Each case shows its ID, quarter, similarity score, action taken,
     outcome, and the key text the agent used to ground its reasoning."""
     if not retrieved_cases:
         return ""
 
-    lines = ["---", "### Evidence Used",
-             "*Historical cases retrieved from the dataset that grounded each agent's reasoning.*"]
+    total_cases = sum(len(cases) for cases in retrieved_cases.values() if cases)
+    if total_cases == 0:
+        return ""
+
+    lines = [
+        "---",
+        f"<details>\n<summary>Evidence Used ({total_cases} Historical Cases) (click to expand)</summary>\n",
+        "*Historical cases retrieved from the dataset that grounded each agent's reasoning.*\n",
+    ]
     for dept, cases in retrieved_cases.items():
         if not cases:
             continue
-        lines.append(f"\n#### {dept}")
+        lines.append(f"#### {dept}")
         for c in cases:
             cid = c.get("case_id", "—")
             quarter = c.get("quarter", "")
             sim = c.get("similarity")
             sim_str = f"{sim:.2f}" if isinstance(sim, (int, float)) else "—"
-            risk = c.get("risk_level", "")
+            action = c.get("risk_level", "")
             outcome = c.get("outcome", "")
             doc = (c.get("document") or "").strip()
             if doc:
@@ -201,10 +226,13 @@ def _format_evidence_block(retrieved_cases: dict) -> str:
             else:
                 formatted_doc = "  > *No details provided.*"
 
+            action_label = f" | Action: {action}" if action else ""
+            outcome_label = f" | Outcome: {outcome}" if outcome else ""
             lines.append(
-                f"- **Case {cid}** ({quarter}) | Similarity: {sim_str} | Risk: {risk} | Outcome: {outcome}\n"
+                f"- **Case {cid}** ({quarter}) | Similarity: {sim_str}{action_label}{outcome_label}\n"
                 f"{formatted_doc}\n"
             )
+    lines.append("</details>")
     return "\n".join(lines)
 
 
@@ -287,15 +315,21 @@ def chat_completions(
     # precedence since it's the more deliberate/explicit of the two.
     thread_id = x_chat_id or request.chat_id or _thread_id_for(request.messages)
 
+    query_preview = user_input.replace("\n", " ")[:80]
+    logger.info(f"Chat completion requested: model='{request.model}', thread='{thread_id}', stream={request.stream}")
+    logger.info(f"User query snippet: \"{query_preview}\"")
+
     try:
         raw_result, retrieved_cases = run_graph(
             user_input=user_input, thread_id=thread_id, model=request.model
         )
     except Exception as exc:
         if is_rate_limit_error(exc):
+            logger.warning(f"Rate limit hit for model='{request.model}': {exc}")
             raw_result = format_rate_limit_error(exc, model_name=request.model)
             retrieved_cases = {}
         else:
+            logger.error(f"Error in run_graph for thread='{thread_id}': {exc}", exc_info=True)
             raise exc
 
     if "Provider Rate Limit Reached" in raw_result or "Rate limit" in raw_result:
@@ -306,6 +340,9 @@ def chat_completions(
         evidence = _format_evidence_block(retrieved_cases)
         if evidence:
             content = f"{content}\n\n{evidence}"
+
+    case_count = sum(len(cases) for cases in retrieved_cases.values()) if retrieved_cases else 0
+    logger.info(f"Generated response for thread='{thread_id}' ({len(content)} chars, {case_count} cases attached)")
 
     if request.stream:
         return StreamingResponse(

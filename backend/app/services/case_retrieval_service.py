@@ -212,7 +212,7 @@ def get_similar_cases(
         if signals and str(signals).strip() not in ("", "[]", "{}", "None", "nan"):
             doc_parts.append(f"Quantitative Signals: {signals}")
         if risk:
-            doc_parts.append(f"Risk Level: {risk}")
+            doc_parts.append(f"Action Taken: {risk}")
         if outcome:
             doc_parts.append(f"Outcome Summary: {outcome}")
 

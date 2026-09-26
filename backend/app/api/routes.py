@@ -4,6 +4,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.agents.master_agent import run_graph, get_thread_model
 from app.core.config import settings
+from app.core.logging_config import get_logger
+
+logger = get_logger("api.routes")
 
 router = APIRouter()
 
@@ -149,17 +152,24 @@ def query_system(request: QueryRequest):
                 detail=f"Model '{request.model}' requires a {provider.upper()}_API_KEY to be set in .env.",
             )
 
+    query_preview = request.query.replace("\n", " ")[:80]
+    logger.info(f"POST /api/query - thread='{request.thread_id}', model='{request.model}', query=\"{query_preview}\"")
+
     try:
         raw_result, retrieved_cases = run_graph(user_input=request.query, thread_id=request.thread_id, model=request.model)
     except Exception as exc:
         if is_rate_limit_error(exc):
+            logger.warning(f"Rate limit hit in /api/query for model='{request.model}': {exc}")
             raw_result = format_rate_limit_error(exc, model_name=request.model)
             retrieved_cases = {}
         else:
+            logger.error(f"Error executing graph in /api/query for thread='{request.thread_id}': {exc}", exc_info=True)
             raise exc
 
     structured = parse_result(raw_result)
     structured["retrieved_cases"] = retrieved_cases or None
+    case_count = sum(len(cases) for cases in retrieved_cases.values()) if retrieved_cases else 0
+    logger.info(f"POST /api/query completed for thread='{request.thread_id}' ({case_count} cases attached)")
 
     return structured
 

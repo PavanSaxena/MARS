@@ -4,6 +4,8 @@ services:
     container_name: mars-backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./app:/app/app
     env_file:
       - .env
 
@@ -17,6 +19,8 @@ services:
       - OPENAI_API_KEY=mars-local
       - ENABLE_OLLAMA_API=false
       - WEBUI_AUTH=false
+      - ENABLE_TITLE_GENERATION=false
+      - ENABLE_MEMORIES=false
     volumes:
       - openwebui-data:/app/backend/data
     depends_on:

@@ -2,6 +2,9 @@ from typing import Any, Dict, List, Tuple
 
 from app.agents.common import get_llm
 from app.state import State
+from app.core.logging_config import get_logger
+
+logger = get_logger("reasoning.aggregator")
 
 
 def _confidence_value(output: dict) -> float:
@@ -59,6 +62,11 @@ def aggregator_agent(state: State) -> Dict:
         if output
     ) or "No department outputs available."
 
+    for name, output in departments:
+        conf = _confidence_value(output)
+        n_cases = (output or {}).get("num_cases_retrieved", 0)
+        logger.info(f"[Aggregator] {name}: confidence={conf:.2f}, cases_retrieved={n_cases}")
+
     assessments_block = "\n\n".join(_fmt_department(name, output) for name, output in departments)
 
     prompt = f"""
@@ -102,12 +110,14 @@ Final Decision:
 """
 
     import time
+    logger.info("[Aggregator] Invoking LLM to synthesize final decision")
     time.sleep(2)
     response = get_llm(state.get("model")).invoke(prompt)
 
     # Normalise content — Gemini returns a list of dicts, not a plain string.
     from app.agents.common import _normalize_content
     response_text = _normalize_content(getattr(response, "content", str(response)))
+    logger.info(f"[Aggregator] Synthesis complete ({len(response_text)} chars)")
 
     explainability_lines = []
     for name, output in departments:
@@ -131,6 +141,9 @@ Final Decision:
         cases = (output or {}).get("retrieved_cases")
         if cases:
             retrieved_cases_by_dept[name] = cases
+
+    total_cases = sum(len(v) for v in retrieved_cases_by_dept.values())
+    logger.info(f"[Aggregator] Final output ready ({total_cases} total evidence cases across {len(retrieved_cases_by_dept)} departments)")
 
     return {
         "final_output": final_output,
