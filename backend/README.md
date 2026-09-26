@@ -37,9 +37,11 @@ Each department agent:
 3. Sends the query + cases to `llama-3.3-70b-versatile` (via Groq) with its two department-specific tools bound (see **Tooling Layer** below). The model decides whether it needs a tool; if it calls one, the tool executes and its result is fed back for a second, final LLM call
 4. Returns `{response, reasoning, confidence, num_cases_retrieved, avg_similarity, historical_success_rate, case_based_confidence, tools_used, explanation}` into the shared LangGraph state
 
-### Tooling Layer
+### Tooling Layer (MCP)
 
-Each department agent has two tools bound to its LLM call (`app/tools/tool_registry.py` controls which):
+Department tools are served over a real **Model Context Protocol** server (`app/mcp/server.py`, built with the official `mcp` SDK's `FastMCP`), not imported as local Python functions. `app/mcp/client.py` spawns it once as a subprocess over stdio (`python -m app.mcp.server`) the first time any agent needs a tool, keeps that one session alive for the life of the backend process, and exposes it to the rest of the codebase as plain sync calls — `get_langchain_tools_sync()` for schema discovery and `call_tool_sync(name, args)` for execution. Because it's a standard MCP server, any other MCP-compatible client (Claude Desktop, another service) could talk to the same tools without changes.
+
+`app/tools/tool_registry.py` and `app/tools/tool_executor.py` no longer hold any tool logic — they're a thin allowlist + execution bridge on top of the MCP client:
 
 | Agent | Tools | Source |
 |---|---|---|
@@ -51,7 +53,9 @@ Each department agent has two tools bound to its LLM call (`app/tools/tool_regis
 - **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) query `decision_cases` directly for a department-level snapshot (risk-level breakdown, most recent cases) — a plain filtered query, separate from the pgvector similarity search used for case retrieval.
 - **External tools** (`MarketAnalysisTool`, `LegalDatabaseTool`, `SupplyChainAnalyzerTool`) run a live Tavily web search. If `TAVILY_API_KEY` isn't set, they return a clear "unavailable" message instead of failing.
 
-The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`. If it does, `app/tools/tool_executor.py:execute_tool_call` runs it (re-checking the same per-agent allowlist as `tool_registry.py`), and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
+The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`, where the bound tools now come from `app/tools/tool_registry.py:get_tool_objects_for_agent`, which in turn calls `app/mcp/client.py:get_langchain_tools_sync` and filters to that agent's allowlist. If the LLM calls one, `app/tools/tool_executor.py:execute_tool_call` re-checks the same allowlist, then forwards the call to `app/mcp/client.py:call_tool_sync` — a real MCP `CallToolRequest` round trip to the server subprocess — and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
+
+For manual inspection, the MCP server can be run standalone: `python -m app.mcp.server` (stdio transport — pair it with any MCP inspector/client).
 
 > **Note on confidence:** `confidence` is the LLM's own self-reported score. `case_based_confidence` is a **placeholder** for a planned multi-factor score (`similarity + recency + past_success`) — the weighting formula is still being researched, so this field is currently always `null`. See `app/reasoning/confidence.py`.
 
@@ -104,8 +108,12 @@ backend/
     │   ├── retriever.py              # retrieve_cases() — calls match_decision_cases RPC
     │   └── index_cases.py            # Computes + writes embeddings into Supabase
     │
+    ├── mcp/
+    │   ├── server.py                  # Real MCP server (FastMCP) — the 8 tool implementations live here
+    │   └── client.py                  # Owns the server subprocess/session; get_langchain_tools_sync() + call_tool_sync()
+    │
     ├── tools/
-    │   ├── tool_executor.py           # 8 real tool implementations + execute_tool_call()
+    │   ├── tool_executor.py           # execute_tool_call() — allowlist check + forwards to app.mcp.client
     │   └── tool_registry.py           # Per-agent tool allowlist + get_tool_objects_for_agent()
     │
     └── api/

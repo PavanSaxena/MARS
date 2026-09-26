@@ -14,6 +14,8 @@ dependencies = [
     "langchain-anthropic>=1.1.0",
     "langchain-tavily>=0.2.18",
     "langgraph>=1.2.9",
+    "mcp>=1.10.0",
+    "langchain-mcp-adapters>=0.1.0",
     "numpy>=2.5.1",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.6.0",
@@ -26,3 +28,13 @@ dependencies = [
     "torch>=2.13.0",
     "uvicorn[standard]>=0.51.0",
 ]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
