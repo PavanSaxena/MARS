@@ -14,15 +14,18 @@ Usage:
 import csv
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
 from app.services.supabase_client import get_supabase_client
 from app.storage.embedder import get_embeddings
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(message)s")
 logger = logging.getLogger("sync_decisions")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [Sync] %(message)s"))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
 
 # backend/app/storage/sync_decisions_to_supabase.py -> repo root / dataset
 DATASET_DIR = Path(__file__).resolve().parent.parent.parent.parent / "dataset"
@@ -92,24 +95,17 @@ def sync_decisions(supabase, decisions: List[Dict[str, Any]]):
     logger.info("Checking 'decisions' table in Supabase...")
     try:
         supabase.table("decisions").select("case_id").limit(1).execute()
-    except Exception:
-        logger.error(
-            "\n" + "=" * 80 + "\n"
-            "ERROR: Table 'decisions' does not exist in Supabase!\n\n"
-            "HOW TO FIX:\n"
-            "1. Open Supabase Dashboard -> SQL Editor\n"
-            "2. Paste and run backend/sql/005_decisions_outcomes_setup.sql\n"
-            "3. Re-run this script!\n"
-            "=" * 80
-        )
-        sys.exit(1)
+    except Exception as exc:
+        logger.error("Table 'decisions' does not exist in Supabase! Run backend/sql/005_decisions_outcomes_setup.sql.")
+        raise RuntimeError(
+            "Table 'decisions' does not exist in Supabase! Run backend/sql/005_decisions_outcomes_setup.sql."
+        ) from exc
 
     total = len(decisions)
-    logger.info(f"Computing embeddings for {total} decision cases...")
-
+    logger.info("Computing embeddings for %d decision cases...", total)
     docs = [build_embedding_doc(row) for row in decisions]
     embeddings = get_embeddings(docs)
-    logger.info(f"Successfully generated {len(embeddings)} normalized 384-d embeddings.")
+    logger.info("Successfully generated %d normalized 384-d embeddings.", len(embeddings))
 
     records = []
     for row, emb in zip(decisions, embeddings):
@@ -117,11 +113,11 @@ def sync_decisions(supabase, decisions: List[Dict[str, Any]]):
         rec["embedding"] = emb
         records.append(rec)
 
-    logger.info(f"Upserting {total} decisions into 'decisions'...")
+    logger.info("Upserting %d decisions into 'decisions'...", total)
     for i in range(0, total, BATCH_SIZE):
         batch = records[i : i + BATCH_SIZE]
         supabase.table("decisions").upsert(batch).execute()
-        logger.info(f"  Upserted {min(i + BATCH_SIZE, total)}/{total} decisions...")
+        logger.info("  Upserted %d/%d decisions...", min(i + BATCH_SIZE, total), total)
 
     logger.info("Decisions sync completed successfully.")
 
@@ -130,21 +126,18 @@ def sync_outcomes(supabase, outcomes: List[Dict[str, Any]]):
     logger.info("Checking 'outcomes' table in Supabase...")
     try:
         supabase.table("outcomes").select("case_id").limit(1).execute()
-    except Exception:
-        logger.error(
-            "\n" + "=" * 80 + "\n"
-            "ERROR: Table 'outcomes' does not exist in Supabase!\n"
-            "Run backend/sql/005_decisions_outcomes_setup.sql in the Supabase SQL Editor first.\n"
-            "=" * 80
-        )
-        sys.exit(1)
+    except Exception as exc:
+        logger.error("Table 'outcomes' does not exist in Supabase! Run backend/sql/005_decisions_outcomes_setup.sql.")
+        raise RuntimeError(
+            "Table 'outcomes' does not exist in Supabase! Run backend/sql/005_decisions_outcomes_setup.sql."
+        ) from exc
 
     total = len(outcomes)
-    logger.info(f"Upserting {total} outcomes into 'outcomes'...")
+    logger.info("Upserting %d outcomes into 'outcomes'...", total)
     for i in range(0, total, BATCH_SIZE):
         batch = outcomes[i : i + BATCH_SIZE]
         supabase.table("outcomes").upsert(batch).execute()
-        logger.info(f"  Upserted {min(i + BATCH_SIZE, total)}/{total} outcomes...")
+        logger.info("  Upserted %d/%d outcomes...", min(i + BATCH_SIZE, total), total)
 
     logger.info("Outcomes sync completed successfully.")
 
@@ -154,8 +147,8 @@ def main():
     outcomes_path = DATASET_DIR / "Outcome" / "outcomes.csv"
 
     if not decisions_path.exists() or not outcomes_path.exists():
-        logger.error(f"Datasets not found at {decisions_path} or {outcomes_path}")
-        return
+        logger.error("Datasets not found at %s or %s", decisions_path, outcomes_path)
+        raise FileNotFoundError(f"Datasets not found at {decisions_path} or {outcomes_path}")
 
     with open(decisions_path, "r", encoding="utf-8") as f:
         decisions = list(csv.DictReader(f))
@@ -163,13 +156,13 @@ def main():
     with open(outcomes_path, "r", encoding="utf-8") as f:
         outcomes = list(csv.DictReader(f))
 
-    logger.info(f"Loaded {len(decisions)} decisions and {len(outcomes)} outcomes from CSV.")
+    logger.info("Loaded %d decisions and %d outcomes from CSV.", len(decisions), len(outcomes))
 
     supabase = get_supabase_client()
     # Decisions first -- outcomes.case_id has a foreign key into decisions.
     sync_decisions(supabase, decisions)
     sync_outcomes(supabase, outcomes)
-    logger.info("ALL DATA SYNCED TO SUPABASE SUCCESSFULLY.")
+    logger.info("All data synced to Supabase successfully.")
 
 
 if __name__ == "__main__":

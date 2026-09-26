@@ -16,6 +16,7 @@ services:
       - OPENAI_API_BASE_URL=http://mars-backend:8000/v1
       - OPENAI_API_KEY=mars-local
       - ENABLE_OLLAMA_API=false
+      - WEBUI_AUTH=false
     volumes:
       - openwebui-data:/app/backend/data
     depends_on:
