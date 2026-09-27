@@ -49,7 +49,16 @@ def get_llm(model_id: Optional[str] = None):
     resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
-        _llm_cache[resolved] = init_chat_model(resolved, max_retries=10)
+        provider = resolved.split(":", 1)[0] if ":" in resolved else ""
+        kwargs: Dict[str, Any] = {"max_retries": 10}
+        if provider == "ollama":
+            # When running inside Docker, localhost inside the container is the
+            # container itself — not the host where Ollama listens. Use the
+            # configured OLLAMA_BASE_URL (defaults to host.docker.internal:11434)
+            # so the request escapes the container and reaches the host process.
+            kwargs["base_url"] = settings.OLLAMA_BASE_URL
+            logger.info(f"[get_llm] Ollama model '{resolved}' → base_url={settings.OLLAMA_BASE_URL}")
+        _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
     return _llm_cache[resolved]
 
 

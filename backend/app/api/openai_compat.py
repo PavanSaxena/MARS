@@ -139,7 +139,7 @@ def _format_markdown(structured: dict[str, Any]) -> str:
 
     fd = structured.get("final_decision") or {}
     if fd.get("decision"):
-        parts.append(f"### Final Decision\n{fd['decision'].strip()}")
+        parts.append(fd['decision'].strip())
     meta_bits = []
     if fd.get("risk_level"):
         meta_bits.append(f"**Risk level:** {fd['risk_level']}")
@@ -338,7 +338,10 @@ def chat_completions(
         structured = parse_result(raw_result)
         content = _format_markdown(structured)
         evidence = _format_evidence_block(retrieved_cases)
-        if evidence:
+        # Only append evidence for pipeline responses (cases keyed by department).
+        # Simple chat replies return an empty dict or no department keys at all.
+        is_pipeline_response = bool(retrieved_cases and any(retrieved_cases.values()))
+        if evidence and is_pipeline_response:
             content = f"{content}\n\n{evidence}"
 
     case_count = sum(len(cases) for cases in retrieved_cases.values()) if retrieved_cases else 0
