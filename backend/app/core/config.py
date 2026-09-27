@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     LOG_LEVEL: str = "INFO"
 
+    # Ollama — when running inside Docker the container cannot reach the host's
+    # loopback address. Set OLLAMA_BASE_URL in .env to point at the host, e.g.
+    # OLLAMA_BASE_URL=http://host.docker.internal:11434
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
+
     def api_key_for_model(self, model_id: str) -> Optional[str]:
         """Return the configured API key for a model's provider, or None."""
         provider = model_id.split(":", 1)[0] if ":" in model_id else ""
