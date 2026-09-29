@@ -125,7 +125,7 @@ def build_case_evidence(
 ) -> Dict[str, Any]:
     """
     Compute retrieval-side stats for the retrieved cases and attach a
-    case_based_confidence placeholder (see app.reasoning.confidence).
+    calibrated multi-factor case_based_confidence (see app.reasoning.confidence).
 
     Returns a dict meant to be merged into an agent's output, e.g.:
         parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
@@ -133,18 +133,18 @@ def build_case_evidence(
     similarity = compute_similarity(cases)
     success_rate = analyze_outcomes(cases)
 
-    # Placeholder — always None until the weighting formula is finalized.
-    case_based_confidence = calculate_confidence(
-        similarity=similarity,
-        past_success=success_rate,
-    )
-
     # Only surface cases the agent actually considered useful for its answer.
     # When the agent reports confidence 0.0 it means it looked at the retrieved
     # records and decided none were relevant enough to ground a recommendation.
     # Showing those cases in the frontend would be misleading — it would imply
     # they informed the decision when they explicitly did not.
     agent_used_cases = (reported_confidence is None or reported_confidence > 0.0) and bool(cases)
+
+    case_based_confidence = (
+        calculate_confidence(cases=cases)
+        if agent_used_cases
+        else 0.0
+    )
 
     num_cases = len(cases) if agent_used_cases else 0
 
@@ -169,7 +169,7 @@ def build_case_evidence(
         "num_cases_retrieved": num_cases,
         "avg_similarity": round(similarity, 4) if agent_used_cases else None,
         "historical_success_rate": round(success_rate, 4) if agent_used_cases else None,
-        "case_based_confidence": case_based_confidence,  # placeholder, TODO
+        "case_based_confidence": round(case_based_confidence, 4) if agent_used_cases else 0.0,
         "tools_used": tools_used or [],
         "retrieved_cases": slim_cases,
         "explanation": generate_explanation(

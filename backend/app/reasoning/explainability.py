@@ -20,8 +20,8 @@ def generate_explanation(
     """
     confidence_text = (
         f"{confidence:.2f}"
-        if confidence is not None
-        else "not yet available (scoring formula still in progress)"
+        if isinstance(confidence, (int, float))
+        else "0.00"
     )
     tools_text = (
         f"Tools consulted: {', '.join(tools_used)}."

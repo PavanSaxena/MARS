@@ -16,10 +16,15 @@ from app.tools.tool_registry import get_tool_objects_for_agent
 
 def legal_agent(state: State) -> Dict[str, Any]:
     """Legal Agent: Analyze legal implications and provide recommendations.
+    - Checks if active in dynamically routed department mask
     - Retrieves similar legal cases from Supabase (pgvector)
     - Evaluates legal risks, compliance issues, and regulatory constraints
     - Outputs a structured recommendation
     """
+    active_depts = state.get("active_departments")
+    if active_depts is not None and "legal" not in active_depts:
+        return {"legal_output": None}
+
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("legal_output", messages)

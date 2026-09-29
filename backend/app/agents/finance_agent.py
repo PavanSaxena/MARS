@@ -17,10 +17,15 @@ from app.tools.tool_registry import get_tool_objects_for_agent
 def finance_agent(state: State) -> Dict[str, Any]:
     """
     Finance Agent:
+    - Checks if active in dynamically routed department mask
     - Retrieves similar financial cases from Supabase (pgvector)
     - Performs financial reasoning using an LLM
     - Outputs a structured recommendation
     """
+    active_depts = state.get("active_departments")
+    if active_depts is not None and "finance" not in active_depts:
+        return {"finance_output": None}
+
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("finance_output", messages)
