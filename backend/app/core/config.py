@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # langchain's init_chat_model() convention — this is exactly what's
     # passed to init_chat_model, so adding a new option is a one-line change
     # here, nothing else in the codebase needs to know about it.
-    DEFAULT_MODEL: str = "ollama:qwen2.5:3b"
+    DEFAULT_MODEL: str = "groq:openai/gpt-oss-120b"
     AVAILABLE_MODELS: List[str] = [
         "ollama:qwen2.5:3b",
         "google_genai:gemini-3.8-flash",

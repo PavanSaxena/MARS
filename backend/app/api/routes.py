@@ -35,6 +35,8 @@ class FinalDecision(BaseModel):
 class QueryResponse(BaseModel):
     key_insights: list[str]
     conflicts: list[str]
+    risk_foresight: list[str]
+    action_roadmap: list[str]
     final_decision: FinalDecision
     explainability: str | None = None
     # Per-department list of the historical cases used to ground each agent's
@@ -42,7 +44,14 @@ class QueryResponse(BaseModel):
     # "Operations"); each value is a list of slim case dicts.
     retrieved_cases: dict | None = None
 
-_SECTION_NAMES = ["Key Insights", "Conflicts", "Final Decision", "Explainability"]
+_SECTION_NAMES = [
+    "Key Insights",
+    "Conflicts",
+    "Risk Foresight",
+    "Recommended Strategic Plan & Action Roadmap",
+    "Final Decision",
+    "Explainability",
+]
 # Header lines are matched leniently: case-insensitive, optional markdown
 # emphasis (** or __ around the name), and an optional trailing colon — the
 # aggregator prompt asks for e.g. "Final Decision:" but LLM output doesn't
@@ -51,7 +60,7 @@ _SECTION_NAMES = ["Key Insights", "Conflicts", "Final Decision", "Explainability
 # parser silently dropped whichever sections didn't match, which produced
 # an empty final_decision dict and failed response validation entirely.
 _HEADER_RE = re.compile(
-    r"^[ \t]*[*_]{0,2}[ \t]*(" + "|".join(re.escape(n) for n in _SECTION_NAMES) + r")[ \t]*[*_:]*[ \t]*$",
+    r"^[ \t]*#{0,6}[ \t]*[*_]{0,2}[ \t]*(" + "|".join(re.escape(n) for n in _SECTION_NAMES) + r")[ \t]*[*_:]*[ \t]*$",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -71,6 +80,8 @@ def parse_result(text: str):
     data = {
         "key_insights": [],
         "conflicts": [],
+        "risk_foresight": [],
+        "action_roadmap": [],
         "final_decision": {},
         "explainability": None,
     }
@@ -95,6 +106,20 @@ def parse_result(text: str):
                 line.strip().lstrip("*-•").strip()
                 for line in body.splitlines()
                 if line.strip() and line.strip().lower() != "none detected"
+            ]
+
+        elif name == "risk foresight":
+            data["risk_foresight"] = [
+                line.strip().lstrip("*-•").strip()
+                for line in body.splitlines()
+                if line.strip()
+            ]
+
+        elif name == "recommended strategic plan & action roadmap":
+            data["action_roadmap"] = [
+                line.strip().lstrip("*-•").strip()
+                for line in body.splitlines()
+                if line.strip()
             ]
 
         elif name == "final decision":
@@ -172,4 +197,3 @@ def query_system(request: QueryRequest):
     logger.info(f"POST /api/query completed for thread='{request.thread_id}' ({case_count} cases attached)")
 
     return structured
-

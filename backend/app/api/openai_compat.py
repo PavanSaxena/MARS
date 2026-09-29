@@ -137,9 +137,25 @@ def _format_markdown(structured: dict[str, Any]) -> str:
     ambiguous spacing that could render oddly."""
     parts: list[str] = []
 
+    if structured.get("key_insights"):
+        bullets = "\n".join(f"- {i}" for i in structured["key_insights"])
+        parts.append(f"### Key Insights\n{bullets}")
+
+    if structured.get("conflicts"):
+        bullets = "\n".join(f"- {c}" for c in structured["conflicts"])
+        parts.append(f"### Conflicts\n{bullets}")
+
+    if structured.get("risk_foresight"):
+        bullets = "\n".join(f"- {risk}" for risk in structured["risk_foresight"])
+        parts.append(f"### Risk Foresight\n{bullets}")
+
+    if structured.get("action_roadmap"):
+        bullets = "\n".join(f"- {step}" for step in structured["action_roadmap"])
+        parts.append(f"### Recommended Strategic Plan & Action Roadmap\n{bullets}")
+
     fd = structured.get("final_decision") or {}
     if fd.get("decision"):
-        parts.append(fd['decision'].strip())
+        parts.append(f"### Final Decision\n{fd['decision'].strip()}")
     meta_bits = []
     if fd.get("risk_level"):
         meta_bits.append(f"**Risk level:** {fd['risk_level']}")
@@ -149,24 +165,6 @@ def _format_markdown(structured: dict[str, Any]) -> str:
         parts.append("  \n".join(meta_bits))
     if fd.get("notes"):
         parts.append(f"**Notes:** {fd['notes']}")
-
-    if structured.get("key_insights"):
-        bullets = "\n".join(
-            i.strip() if i.strip().startswith(("-", "*", "|")) else f"- {i.strip()}"
-            for i in structured["key_insights"]
-        )
-        parts.append(f"### Key Insights\n\n{bullets}")
-
-    if structured.get("conflicts"):
-        formatted_conflicts = []
-        for c in structured["conflicts"]:
-            c_str = c.strip()
-            if c_str.startswith("|"):
-                formatted_conflicts.append(c_str)
-            else:
-                formatted_conflicts.append(f"- {c_str}")
-        conflicts_text = "\n".join(formatted_conflicts)
-        parts.append(f"### Conflicts\n\n{conflicts_text}")
 
     if structured.get("explainability"):
         # "[Finance]\n...text..." -> "#### Finance\n...text..." so each
