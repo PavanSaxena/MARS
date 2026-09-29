@@ -5,29 +5,45 @@ from app.state import State
 
 
 def _confidence_value(output: dict) -> float:
-    """Self-reported LLM confidence, used for ranking until case_based_confidence is finalized."""
-    value = (output or {}).get("confidence")
-    return value if isinstance(value, (int, float)) else 0.0
+    """
+    Extract the effective confidence for ranking.
+    Prioritizes calibrated multi-factor case_based_confidence (empirical),
+    falling back to self-reported LLM confidence if not present.
+    """
+    case_conf = (output or {}).get("case_based_confidence")
+    if isinstance(case_conf, (int, float)):
+        return float(case_conf)
+    llm_conf = (output or {}).get("confidence")
+    return float(llm_conf) if isinstance(llm_conf, (int, float)) else 0.0
 
 
 def _fmt_department(name: str, output: dict) -> str:
     if not output:
-        return f"--- {name} Assessment ---\nNo input received."
+        return f"--- {name} Assessment ---\n(Scoped out by dynamic router — not required for this query)"
 
     case_based_confidence = output.get("case_based_confidence")
     case_based_text = (
         f"{case_based_confidence:.2f}"
         if isinstance(case_based_confidence, (int, float))
-        else "not yet available (placeholder — scoring formula still in progress)"
+        else "0.00"
     )
+
+    avg_sim = output.get("avg_similarity")
+    sim_text = f"{avg_sim:.2f}" if isinstance(avg_sim, (int, float)) else "N/A"
+
+    succ_rate = output.get("historical_success_rate")
+    succ_text = f"{succ_rate:.1%}" if isinstance(succ_rate, (int, float)) else "N/A"
+
+    reported_conf = output.get("confidence")
+    reported_text = f"{reported_conf:.2f}" if isinstance(reported_conf, (int, float)) else "0.00"
 
     return (
         f"--- {name} Assessment ---\n"
         f"Response: {output.get('response', 'N/A')}\n"
         f"Reasoning: {output.get('reasoning', 'N/A')}\n"
-        f"Reported Confidence: {_confidence_value(output):.2f}\n"
-        f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}\n"
-        f"Case-Based Confidence: {case_based_text}"
+        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text})\n"
+        f"LLM Self-Reported Confidence: {reported_text}\n"
+        f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}"
     )
 
 
@@ -35,13 +51,10 @@ def aggregator_agent(state: State) -> Dict:
     """
     Aggregator Agent:
     - Collects outputs from all four department agents
-    - Ranks departments by their reported confidence (highest first), since
-      the dedicated multi-factor case_based_confidence score is still a
-      placeholder (see app.reasoning.confidence) and not yet reliable
-    - Falls back to a fixed priority order (Legal > Finance > Operations > R&D)
-      only as a tiebreaker when confidence levels are close / conflicting
-    - Produces a final actionable strategic decision plus a per-department
-      explainability trail
+    - Ranks departments by their calibrated multi-factor case_based_confidence
+      (similarity + recency + past success rate), highest first
+    - Uses priority order (Legal > Finance > Operations > R&D) as a tiebreaker
+    - Synthesizes cross-departmental tensions and produces a grounded strategic decision
     """
     departments: List[Tuple[str, dict]] = [
         ("Finance", state.get("finance_output") or {}),
@@ -50,11 +63,10 @@ def aggregator_agent(state: State) -> Dict:
         ("Operations", state.get("operations_output") or {}),
     ]
 
-    # Rank by reported confidence, highest first, so the master agent sees
-    # which department to weight more heavily.
+    # Rank by calibrated case-based confidence, highest first
     ranked = sorted(departments, key=lambda item: _confidence_value(item[1]), reverse=True)
     ranked_summary = "\n".join(
-        f"{i+1}. {name} (confidence: {_confidence_value(output):.2f})"
+        f"{i+1}. {name} (Case-Based Confidence: {_confidence_value(output):.2f})"
         for i, (name, output) in enumerate(ranked)
         if output
     ) or "No department outputs available."

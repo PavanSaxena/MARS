@@ -17,10 +17,15 @@ from app.tools.tool_registry import get_tool_objects_for_agent
 def operations_agent(state: State) -> Dict[str, Any]:
     """
     Operations Agent:
+    - Checks if active in dynamically routed department mask
     - Retrieves similar operations cases from Supabase (pgvector)
     - Evaluates execution feasibility, resourcing, and delivery risk
     - Outputs a structured recommendation
     """
+    active_depts = state.get("active_departments")
+    if active_depts is not None and "operations" not in active_depts:
+        return {"operations_output": None}
+
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("operations_output", messages)

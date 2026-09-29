@@ -57,9 +57,9 @@ The LLM decides per-query whether to call a tool at all — see the "Retrieved E
 
 For manual inspection, the MCP server can be run standalone: `python -m app.mcp.server` (stdio transport — pair it with any MCP inspector/client).
 
-> **Note on confidence:** `confidence` is the LLM's own self-reported score. `case_based_confidence` is a **placeholder** for a planned multi-factor score (`similarity + recency + past_success`) — the weighting formula is still being researched, so this field is currently always `null`. See `app/reasoning/confidence.py`.
+> **Multi-Factor Confidence Scoring:** `case_based_confidence` computes an objective, calibrated score in `[0.0, 1.0]` combining vector similarity ($45\%$), empirical precedent success rate ($35\%$), and temporal recency decay ($20\%$). The Aggregator uses this calibrated score to weight and rank department evidence. See `app/reasoning/confidence.py`.
 
-The Aggregator ranks departments by their reported confidence (highest first), uses a fixed priority order (Legal > Finance > Operations > R&D) only as a tiebreaker, and appends a per-department explainability trail to the final output.
+The Aggregator ranks departments by their calibrated case-based confidence (highest first), uses a fixed priority order (Legal > Finance > Operations > R&D) only as a tiebreaker, and appends a per-department explainability trail to the final output.
 
 **There is no separate vector database.** Decision data and its embeddings both live in Supabase — decisions are stored in the `decisions` table (Postgres), and a `vector` column on that same table (via the `pgvector` extension) is queried directly for similarity search. Outcomes live in a separate `outcomes` table (one row per `decisions.case_id`), joined in server-side by the `match_decisions` RPC.
 

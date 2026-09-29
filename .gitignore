@@ -21,3 +21,4 @@ frontend/.env
 
 .webui_secret_key
 .zip
+*.code-workspace

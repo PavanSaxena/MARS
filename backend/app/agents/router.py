@@ -3,25 +3,27 @@ from typing import Any, Dict
 from app.agents.common import get_llm
 from app.state import State
 
-_ROUTER_PROMPT = """You are the entry-point router for a multi-department business \
-decision system (Legal, Finance, Operations, R&D). Every user message currently \
-triggers a full four-department analysis, which is expensive and makes the system \
-feel broken for ordinary conversation (greetings, "test", follow-up questions, \
-"go into more detail", etc.). Your job is to decide, for the LATEST user message \
-only, whether it actually needs that full analysis to run again.
+_ROUTER_PROMPT = """You are the entry-point router for a multi-department strategic business \
+decision system (Legal, Finance, Operations, R&D).
 
-Route to "pipeline" when the message:
-- Proposes or describes a new project, investment, or business decision to evaluate.
-- Adds new decision-relevant facts (budget, scope, jurisdiction, timeline, etc.) to a
-  proposal that hasn't been fully analyzed yet.
-- Explicitly asks for a fresh/updated department-by-department assessment.
+Your job is two-fold for the LATEST user message:
+1. Decide whether this message needs the decision "pipeline" or is general "chat" (greeting, follow-up, clarification).
+2. If "pipeline", determine which department specialists MUST be consulted based on query scope:
+   - "finance": budgets, capital allocation, margins, ROI, pricing, revenue, cash reserves, tax.
+   - "legal": regulatory compliance, antitrust, patents, litigation, labor laws, contracts.
+   - "rd": software engineering, chip design, machine learning, hardware architecture, technical feasibility.
+   - "operations": supply chain, manufacturing, Foxconn/TSMC assembly, logistics, procurement, inventory.
+   (If the decision is broad, complex, cross-functional, or uncertain, include all 4).
 
-Route to "chat" when the message:
-- Is a greeting, small talk, or an obvious test message (e.g. "test", "hi", "ping").
-- Asks to elaborate, clarify, summarize, rephrase, or answer a question about a
-  decision that was ALREADY produced earlier in this conversation.
-- Is a general follow-up question that doesn't introduce new decision-relevant
-  information.
+Routing Rules:
+- Output "chat" for greetings, test messages, or questions about previously generated decisions.
+- Output "pipeline: [dept1, dept2, ...]" for new decisions or proposals.
+
+Examples:
+- "Hi" -> chat
+- "Should we switch our silicon packaging from TSMC to Intel Foundry for M4 chip wafer binning?" -> pipeline: [rd, operations, finance]
+- "What are the tax implications of shifting cash reserves to our European subsidiary?" -> pipeline: [finance, legal]
+- "Evaluate our 2024 enterprise strategic expansion and product rollout plan." -> pipeline: [finance, rd, legal, operations]
 
 Conversation so far (most recent last):
 {history}
@@ -29,7 +31,7 @@ Conversation so far (most recent last):
 Latest user message:
 {query}
 
-Respond with exactly one word, either: pipeline or chat
+Respond in exactly one line: either "chat" or "pipeline: [department_list]"
 """
 
 
@@ -51,20 +53,22 @@ def _render_history(messages) -> str:
         content = (content or "").strip()
         if content:
             lines.append(f"{role}: {content[:500]}")
-    return "\n".join(lines) if lines else "(no prior messages)"
+        return "\n".join(lines) if lines else "(no prior messages)"
+
+
+from app.reasoning.semantic_router import route_departments_semantically
 
 
 def classify_intent(state: State) -> Dict[str, Any]:
     """
-    Entry node: decides whether this turn needs the full Legal/Finance/
-    Operations/R&D pipeline, or should just be answered conversationally
-    (see chat_agent). Classifies every message, including the first one in
-    a thread — an opening "hi" or "test" is just as much a chat turn as a
-    later one.
+    Entry node:
+    1. Distinguishes 'chat' vs 'pipeline' intent.
+    2. If 'pipeline', executes Semantic Vector Gating (Embedding-Space MoE Router)
+       to dynamically determine the exact active department specialists needed.
     """
     messages = state.get("messages", [])
     if not messages:
-        return {"route": "chat"}
+        return {"route": "chat", "active_departments": None}
 
     last = messages[-1]
     query = getattr(last, "content", None)
@@ -73,7 +77,7 @@ def classify_intent(state: State) -> Dict[str, Any]:
     query = (query or "").strip()
 
     if not query:
-        return {"route": "chat"}
+        return {"route": "chat", "active_departments": None}
 
     prompt = _ROUTER_PROMPT.format(history=_render_history(messages), query=query)
 
@@ -81,9 +85,15 @@ def classify_intent(state: State) -> Dict[str, Any]:
         response = get_llm(state.get("model")).invoke(prompt)
         text = (getattr(response, "content", "") or "").strip().lower()
     except Exception:
-        # If classification itself fails, default to the safer/heavier path
-        # rather than silently skipping analysis.
-        return {"route": "pipeline"}
+        text = "pipeline"
 
-    route = "chat" if text.startswith("chat") else "pipeline"
-    return {"route": route}
+    if text.startswith("chat"):
+        return {"route": "chat", "active_departments": None}
+
+    # Execute true Embedding-Space Semantic Vector Gating
+    try:
+        active_depts, scores = route_departments_semantically(query)
+    except Exception:
+        active_depts = ["finance", "rd", "legal", "operations"]
+
+    return {"route": "pipeline", "active_departments": active_depts}
