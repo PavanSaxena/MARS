@@ -228,6 +228,7 @@ def get_similar_cases(
                 "conflicting_perspectives": conflicts,
                 "risk_level": c["risk_level"],
                 "outcome": c["outcome"],
+                "outcome_label": row.get("outcome_label"),
                 "similarity": sim_val,
                 "relevance_score": c["relevance_score"],
             },

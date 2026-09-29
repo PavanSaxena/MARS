@@ -100,6 +100,47 @@ def _format_case_for_prompt(case: dict, idx: int) -> str:
     return f"{header}\n{doc}"
 
 
+def _case_outcome_category(case: dict) -> str:
+    """Return a conservative category from the explicit outcome label.
+
+    Outcome prose is intentionally not keyword-classified here: it may contain
+    both positive and negative observations, and the structured outcome label
+    is the source of truth for contrastive prompt grouping.
+    """
+    metadata = case.get("metadata", {}) or {}
+    label = metadata.get("outcome_label")
+    if label is None:
+        # Compatibility for callers and legacy data that already provide a
+        # label in the older outcome field. Never infer from free-text prose.
+        label = metadata.get("outcome") or case.get("outcome")
+
+    normalized = str(label or "").strip().lower()
+    if normalized in {"success", "failure", "unresolved", "mixed"}:
+        return normalized
+    return "unknown"
+
+
+def _format_contrastive_case_context(cases: List[dict]) -> str:
+    """Render each retrieved case once, grouped by its structured outcome."""
+    group_specs = (
+        ("success", "HISTORICAL SUCCESS PRECEDENTS (strategies to consider)"),
+        ("failure", "HISTORICAL FAILURE WARNINGS (pitfalls and safeguards)"),
+        ("mixed", "MIXED OR UNCERTAIN OUTCOMES"),
+        ("unresolved", "UNRESOLVED OUTCOMES"),
+        ("unknown", "OUTCOME NOT CLASSIFIED"),
+    )
+    grouped = {category: [] for category, _ in group_specs}
+    for idx, case in enumerate(cases, start=1):
+        grouped[_case_outcome_category(case)].append(_format_case_for_prompt(case, idx))
+
+    sections = []
+    for category, heading in group_specs:
+        rendered = grouped[category]
+        contents = "\n\n".join(rendered) if rendered else "No retrieved cases in this category."
+        sections.append(f"=== {heading} ===\n{contents}")
+    return "\n\n".join(sections)
+
+
 def retrieve_case_context(
     query: str,
     domain: str,
@@ -128,7 +169,7 @@ def retrieve_case_context(
         logger.exception("retrieval_failed domain=%s", domain)
 
     if cases:
-        case_text = "\n\n".join([_format_case_for_prompt(case, i + 1) for i, case in enumerate(cases)])
+        case_text = _format_contrastive_case_context(cases)
         logger.info(f"[{domain.upper()}] Retrieved {len(cases)} relevant cases")
     else:
         case_text = "No relevant cases found in dataset."
@@ -176,6 +217,7 @@ def build_case_evidence(
                 "department": c.get("metadata", {}).get("department", ""),
                 "risk_level": c.get("metadata", {}).get("risk_level", ""),
                 "outcome": c.get("metadata", {}).get("outcome", "unknown"),
+                "outcome_label": c.get("metadata", {}).get("outcome_label"),
                 "similarity": c.get("metadata", {}).get("similarity"),
                 "document": c.get("document", ""),
             }
@@ -239,8 +281,9 @@ Retrieved Historical Evidence from Dataset:
 GROUNDING AND PRECEDENT DIRECTIVES:
 1. Evidence-Based Reasoning: Base your assessment strictly on the historical precedents, analogous decisions, and outcomes provided in the Retrieved Evidence above.
 2. Precedent Application:
-   - Treat the retrieved cases as organizational precedents (e.g. past decisions on pricing, compliance, platform updates, supply chain adjustments, or risk mitigation).
-   - Synthesize lessons learned from these cases to answer the user query.
+   - Treat success cases as examples of strategies to consider and failure cases as warnings that may inform safeguards; neither category proves that an action will succeed or fail in the current situation.
+   - Treat mixed, unresolved, and unclassified outcomes as uncertain. Do not use them as success or failure evidence.
+   - Synthesize only lessons relevant to the current query from the retrieved cases.
    - In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
 3. Strict Refusal ONLY When Database is Empty:
    - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
