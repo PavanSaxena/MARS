@@ -165,11 +165,25 @@ def build_case_evidence(
         else []
     )
 
+    from app.reasoning.conformal_predictor import ConformalRiskController
+    _conformal_controller = ConformalRiskController(alpha=0.05)
+    conformal_bound = _conformal_controller.evaluate_decision_bound(
+        point_confidence=case_based_confidence,
+        cases_count=num_cases
+    )
+
     return {
         "num_cases_retrieved": num_cases,
         "avg_similarity": round(similarity, 4) if agent_used_cases else None,
         "historical_success_rate": round(success_rate, 4) if agent_used_cases else None,
         "case_based_confidence": round(case_based_confidence, 4) if agent_used_cases else 0.0,
+        "conformal_bound": {
+            "confidence_interval": list(conformal_bound.confidence_interval),
+            "coverage_guarantee": conformal_bound.coverage_guarantee,
+            "risk_level": conformal_bound.risk_level,
+            "decision_policy": conformal_bound.decision_policy,
+            "policy_rationale": conformal_bound.policy_rationale,
+        },
         "tools_used": tools_used or [],
         "retrieved_cases": slim_cases,
         "explanation": generate_explanation(
