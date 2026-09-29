@@ -37,11 +37,18 @@ def _fmt_department(name: str, output: dict) -> str:
     reported_conf = output.get("confidence")
     reported_text = f"{reported_conf:.2f}" if isinstance(reported_conf, (int, float)) else "0.00"
 
+    conformal = output.get("conformal_bound") or {}
+    ci = conformal.get("confidence_interval")
+    conformal_line = ""
+    if ci:
+        policy = conformal.get("decision_policy", "N/A")
+        conformal_line = f"\nConformal 95% Bound: [{ci[0]:.2f}, {ci[1]:.2f}] (Policy: {policy})"
+
     return (
         f"--- {name} Assessment ---\n"
         f"Response: {output.get('response', 'N/A')}\n"
         f"Reasoning: {output.get('reasoning', 'N/A')}\n"
-        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text})\n"
+        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}\n"
         f"LLM Self-Reported Confidence: {reported_text}\n"
         f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}"
     )
