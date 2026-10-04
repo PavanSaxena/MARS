@@ -4,8 +4,12 @@ services:
     container_name: mars-backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./app:/app/app
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
@@ -16,6 +20,9 @@ services:
       - OPENAI_API_BASE_URL=http://mars-backend:8000/v1
       - OPENAI_API_KEY=mars-local
       - ENABLE_OLLAMA_API=false
+      - WEBUI_AUTH=false
+      - ENABLE_TITLE_GENERATION=false
+      - ENABLE_MEMORIES=false
     volumes:
       - openwebui-data:/app/backend/data
     depends_on:

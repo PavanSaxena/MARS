@@ -2,6 +2,9 @@ from typing import Any, Dict
 
 from app.agents.common import get_llm
 from app.state import State
+from app.core.logging_config import get_logger
+
+logger = get_logger("agents.router")
 
 _ROUTER_PROMPT = """You are the entry-point router for a multi-department strategic business \
 decision system (Legal, Finance, Operations, R&D).
@@ -66,8 +69,10 @@ def classify_intent(state: State) -> Dict[str, Any]:
     2. If 'pipeline', executes Semantic Vector Gating (Embedding-Space MoE Router)
        to dynamically determine the exact active department specialists needed.
     """
+    logger.info("router_started")
     messages = state.get("messages", [])
     if not messages:
+        logger.info("router_selected route=chat")
         return {"route": "chat", "active_departments": None}
 
     last = messages[-1]
@@ -77,6 +82,7 @@ def classify_intent(state: State) -> Dict[str, Any]:
     query = (query or "").strip()
 
     if not query:
+        logger.info("router_selected route=chat")
         return {"route": "chat", "active_departments": None}
 
     prompt = _ROUTER_PROMPT.format(history=_render_history(messages), query=query)
@@ -85,15 +91,20 @@ def classify_intent(state: State) -> Dict[str, Any]:
         response = get_llm(state.get("model")).invoke(prompt)
         text = (getattr(response, "content", "") or "").strip().lower()
     except Exception:
+        logger.exception("router_failed default_route=pipeline")
         text = "pipeline"
 
     if text.startswith("chat"):
+        logger.info("router_selected route=chat")
         return {"route": "chat", "active_departments": None}
 
     # Execute true Embedding-Space Semantic Vector Gating
     try:
         active_depts, scores = route_departments_semantically(query)
+        logger.info("router_semantic_gating active_departments=%s scores=%s", active_depts, scores)
     except Exception:
+        logger.exception("semantic_router_failed default_all_departments")
         active_depts = ["finance", "rd", "legal", "operations"]
 
+    logger.info("router_selected route=pipeline active_departments=%s", active_depts)
     return {"route": "pipeline", "active_departments": active_depts}

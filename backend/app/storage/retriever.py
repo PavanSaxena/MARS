@@ -1,7 +1,10 @@
+import logging
 from typing import List, Optional
 
 from app.services.supabase_client import get_supabase_client
 from app.storage.embedder import get_embedding
+
+logger = logging.getLogger(__name__)
 
 # Map friendly agent-facing names to the department values stored in Supabase
 _DOMAIN_MAP = {
@@ -31,18 +34,25 @@ def retrieve_cases(
     Returns a list of row dicts (case_id, decision_title, ..., similarity),
     ordered by similarity descending.
     """
-    vector = get_embedding(query)
     mapped_domain = _DOMAIN_MAP.get(domain.lower(), domain) if domain else None
+    logger.info("embedding_requested domain=%s", mapped_domain)
+    vector = get_embedding(query)
 
     supabase = get_supabase_client()
-    response = supabase.rpc(
-        "match_decisions",
-        {
-            "query_embedding": vector,
-            "match_count": k,
-            "filter_department": mapped_domain,
-            "as_of_date": as_of_date,
-        },
-    ).execute()
+    logger.info("case_retrieval_started domain=%s k=%d", mapped_domain, k)
+    try:
+        response = supabase.rpc(
+            "match_decisions",
+            {
+                "query_embedding": vector,
+                "match_count": k,
+                "filter_department": mapped_domain,
+                "as_of_date": as_of_date,
+            },
+        ).execute()
+    except Exception:
+        logger.exception("case_retrieval_failed domain=%s", mapped_domain)
+        raise
 
+    logger.info("case_retrieval_finished domain=%s results=%d", mapped_domain, len(response.data or []))
     return response.data or []

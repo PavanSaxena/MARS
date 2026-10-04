@@ -8,9 +8,12 @@ app.tools.tool_registry used to advertise to the LLM, then forwards the
 call over the live MCP session (app.mcp.client.call_tool_sync), exactly
 the path any other MCP client would take.
 """
+import logging
 from typing import Any, Dict
 
 from app.mcp.client import call_tool_sync
+
+logger = logging.getLogger(__name__)
 
 
 def execute_tool_call(agent_name: str, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -26,13 +29,17 @@ def execute_tool_call(agent_name: str, tool_name: str, parameters: Dict[str, Any
 
     allowed = get_tools_for_agent(agent_name)
     if tool_name not in allowed:
+        logger.warning("tool_call_rejected agent=%s tool=%s reason=not_allowed", agent_name, tool_name)
         return {
             "status": "error",
             "message": f"Tool '{tool_name}' is not registered for agent '{agent_name}'.",
         }
 
     try:
+        logger.info("tool_execution_started agent=%s tool=%s", agent_name, tool_name)
         result = call_tool_sync(tool_name, parameters)
+        logger.info("tool_execution_finished agent=%s tool=%s status=success", agent_name, tool_name)
         return {"status": "success", "result": result}
     except Exception as e:
+        logger.exception("tool_execution_failed agent=%s tool=%s", agent_name, tool_name)
         return {"status": "error", "message": str(e)}

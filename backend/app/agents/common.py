@@ -9,6 +9,9 @@ from app.reasoning.outcome_analysis import analyze_outcomes
 from app.reasoning.similarity import compute_similarity
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
+from app.core.logging_config import get_logger
+
+logger = get_logger("agents.common")
 
 _llm_cache: Dict[str, Any] = {}
 
@@ -46,7 +49,19 @@ def get_llm(model_id: Optional[str] = None):
     resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
-        _llm_cache[resolved] = init_chat_model(resolved, max_retries=10)
+        logger.info("llm_initializing model=%s", resolved)
+        provider = resolved.split(":", 1)[0] if ":" in resolved else ""
+        kwargs: Dict[str, Any] = {"max_retries": 10}
+        if provider == "ollama":
+            # When running inside Docker, localhost inside the container is the
+            # container itself — not the host where Ollama listens. Use the
+            # configured OLLAMA_BASE_URL (defaults to host.docker.internal:11434)
+            # so the request escapes the container and reaches the host process.
+            kwargs["base_url"] = settings.OLLAMA_BASE_URL
+            logger.info(f"[get_llm] Ollama model '{resolved}' → base_url={settings.OLLAMA_BASE_URL}")
+        _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
+    else:
+        logger.info("llm_reused model=%s", resolved)
     return _llm_cache[resolved]
 
 
@@ -85,6 +100,47 @@ def _format_case_for_prompt(case: dict, idx: int) -> str:
     return f"{header}\n{doc}"
 
 
+def _case_outcome_category(case: dict) -> str:
+    """Return a conservative category from the explicit outcome label.
+
+    Outcome prose is intentionally not keyword-classified here: it may contain
+    both positive and negative observations, and the structured outcome label
+    is the source of truth for contrastive prompt grouping.
+    """
+    metadata = case.get("metadata", {}) or {}
+    label = metadata.get("outcome_label")
+    if label is None:
+        # Compatibility for callers and legacy data that already provide a
+        # label in the older outcome field. Never infer from free-text prose.
+        label = metadata.get("outcome") or case.get("outcome")
+
+    normalized = str(label or "").strip().lower()
+    if normalized in {"success", "failure", "unresolved", "mixed"}:
+        return normalized
+    return "unknown"
+
+
+def _format_contrastive_case_context(cases: List[dict]) -> str:
+    """Render each retrieved case once, grouped by its structured outcome."""
+    group_specs = (
+        ("success", "HISTORICAL SUCCESS PRECEDENTS (strategies to consider)"),
+        ("failure", "HISTORICAL FAILURE WARNINGS (pitfalls and safeguards)"),
+        ("mixed", "MIXED OR UNCERTAIN OUTCOMES"),
+        ("unresolved", "UNRESOLVED OUTCOMES"),
+        ("unknown", "OUTCOME NOT CLASSIFIED"),
+    )
+    grouped = {category: [] for category, _ in group_specs}
+    for idx, case in enumerate(cases, start=1):
+        grouped[_case_outcome_category(case)].append(_format_case_for_prompt(case, idx))
+
+    sections = []
+    for category, heading in group_specs:
+        rendered = grouped[category]
+        contents = "\n\n".join(rendered) if rendered else "No retrieved cases in this category."
+        sections.append(f"=== {heading} ===\n{contents}")
+    return "\n\n".join(sections)
+
+
 def retrieve_case_context(
     query: str,
     domain: str,
@@ -97,6 +153,7 @@ def retrieve_case_context(
     warnings: List[str] = []
 
     try:
+        logger.info("retrieval_started domain=%s", domain)
         cases = get_similar_cases(
             query=query,
             domain=domain,
@@ -108,12 +165,16 @@ def retrieve_case_context(
     except Exception as e:
         cases = []
         warnings.append(f"retrieval_failed: {e}")
+        logger.error(f"[{domain.upper()}] Case retrieval failed: {e}", exc_info=True)
+        logger.exception("retrieval_failed domain=%s", domain)
 
     if cases:
-        case_text = "\n\n".join([_format_case_for_prompt(case, i + 1) for i, case in enumerate(cases)])
+        case_text = _format_contrastive_case_context(cases)
+        logger.info(f"[{domain.upper()}] Retrieved {len(cases)} relevant cases")
     else:
         case_text = "No relevant cases found in dataset."
         warnings.append("no_similar_cases")
+        logger.warning(f"[{domain.upper()}] No similar cases found for query")
 
     return cases, case_text, warnings
 
@@ -156,6 +217,7 @@ def build_case_evidence(
                 "department": c.get("metadata", {}).get("department", ""),
                 "risk_level": c.get("metadata", {}).get("risk_level", ""),
                 "outcome": c.get("metadata", {}).get("outcome", "unknown"),
+                "outcome_label": c.get("metadata", {}).get("outcome_label"),
                 "similarity": c.get("metadata", {}).get("similarity"),
                 "document": c.get("document", ""),
             }
@@ -233,8 +295,9 @@ Retrieved Historical Evidence from Dataset:
 GROUNDING AND PRECEDENT DIRECTIVES:
 1. Evidence-Based Reasoning: Base your assessment strictly on the historical precedents, analogous decisions, and outcomes provided in the Retrieved Evidence above.
 2. Precedent Application:
-   - Treat the retrieved cases as organizational precedents (e.g. past decisions on pricing, compliance, platform updates, supply chain adjustments, or risk mitigation).
-   - Synthesize lessons learned from these cases to answer the user query.
+   - Treat success cases as examples of strategies to consider and failure cases as warnings that may inform safeguards; neither category proves that an action will succeed or fail in the current situation.
+   - Treat mixed, unresolved, and unclassified outcomes as uncertain. Do not use them as success or failure evidence.
+   - Synthesize only lessons relevant to the current query from the retrieved cases.
    - In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
 3. Strict Refusal ONLY When Database is Empty:
    - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
@@ -477,6 +540,8 @@ def run_llm_with_tools(
     from app.tools.tool_executor import execute_tool_call
 
     if not tools:
+        logger.info("llm_tool_phase_skipped agent=%s", agent_name)
+        logger.info(f"[{agent_name}] Running LLM inference (no tools bound)")
         response = llm.invoke(prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
 
@@ -487,18 +552,25 @@ def run_llm_with_tools(
     # Harmony's JSON-constraint mechanism, not a matter of whether a tool
     # call happens at all. See _recover_json_tool_error for the actual fix.
     try:
+        logger.info(f"[{agent_name}] Running LLM inference with {len(tools)} tools: {[t.name for t in tools]}")
+        logger.info("llm_tool_decision_started agent=%s", agent_name)
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
         ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
     except Exception as e:
         if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
+            logger.warning(f"[{agent_name}] Tool calling not supported by provider ({e}), falling back to direct prompt")
             response = llm.invoke(prompt)
             return _normalize_content(getattr(response, "content", str(response))), [], response
+        logger.error(f"[{agent_name}] Error during tool-bound LLM invocation: {e}", exc_info=True)
         raise e
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
+        logger.info("llm_tool_decision_finished agent=%s tool_calls=0", agent_name)
+        logger.info(f"[{agent_name}] Model decided not to call any tools; returning direct answer")
         return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message
 
+    logger.info("llm_tool_decision_finished agent=%s tool_calls=%d", agent_name, len(tool_calls))
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
 
@@ -506,7 +578,10 @@ def run_llm_with_tools(
         tool_name = call.get("name")
         args = call.get("args", {}) or {}
 
+        logger.info(f"[{agent_name}] Executing tool call '{tool_name}' with args: {args}")
+        logger.info("tool_call_requested agent=%s tool=%s", agent_name, tool_name)
         result = execute_tool_call(agent_name, tool_name, args)
+        logger.info("tool_call_finished agent=%s tool=%s status=%s", agent_name, tool_name, result.get("status"))
         used_tools.append(tool_name)
 
         tool_content = (
@@ -514,9 +589,13 @@ def run_llm_with_tools(
             if result.get("status") == "success"
             else f"Tool error: {result.get('message')}"
         )
+        logger.info(f"[{agent_name}] Tool '{tool_name}' returned status={result.get('status')}")
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
 
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
+    logger.info(f"[{agent_name}] Synthesizing final answer after {len(used_tools)} tool call(s)")
+    logger.info("llm_tool_follow_up_started agent=%s", agent_name)
     final_message = llm.invoke(messages)
+    logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
