@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation.leakage_safe.metrics import calibration_curve
-from evaluation.leakage_safe.retrieval import BM25Index
+from evaluation.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.metrics import calibration_curve
+from evaluation.retrieval import BM25Index
 
 
 DEFAULT_LAMBDAS = [0.0, 0.01, 0.03, 0.05, 0.08, 0.13]

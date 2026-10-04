@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Sequence, Set, Tuple
 
 import numpy as np
 
-from evaluation.leakage_safe.dataset import (
+from evaluation.dataset import (
     REPO_ROOT,
     CaseRecord,
     decision_text,
@@ -28,7 +28,7 @@ from evaluation.leakage_safe.dataset import (
     split_cases,
     visible_corpus,
 )
-from evaluation.leakage_safe.metrics import (
+from evaluation.metrics import (
     binary_relevance_metrics,
     intra_list_diversity,
     mean_dicts,

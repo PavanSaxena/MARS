@@ -15,9 +15,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from evaluation.leakage_safe.dataset import REPO_ROOT
-from evaluation.leakage_safe.replay import SYSTEMS, build_replay_cases
-from evaluation.leakage_safe.tracing import EvaluationTracer, TraceRecord, summarize_traces
+from evaluation.dataset import REPO_ROOT
+from evaluation.replay import SYSTEMS, build_replay_cases
+from evaluation.tracing import EvaluationTracer, TraceRecord, summarize_traces
 
 
 def run_replay_outputs(

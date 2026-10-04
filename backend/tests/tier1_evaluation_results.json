@@ -1,6 +1,6 @@
 {
-  "benchmark_timestamp_utc": "2026-10-04 16:48:26",
-  "total_execution_seconds": 5.33,
+  "benchmark_timestamp_utc": "2026-10-04 16:50:44",
+  "total_execution_seconds": 5.83,
   "pillar_1_conformal_risk_bounds": {
     "high_confidence_policy": "PROCEED_AUTONOMOUS",
     "high_confidence_interval": [
@@ -63,9 +63,9 @@
         "company": "Microsoft Corp.",
         "sector": "Big Tech / Software",
         "target": [
-          "finance",
           "operations",
-          "rd"
+          "rd",
+          "finance"
         ],
         "predicted": [
           "rd"
@@ -126,8 +126,8 @@
         "company": "Pfizer Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "finance",
-          "operations"
+          "operations",
+          "finance"
         ],
         "predicted": [
           "operations"
@@ -147,8 +147,8 @@
         "company": "Pfizer Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "rd",
-          "legal"
+          "legal",
+          "rd"
         ],
         "predicted": [
           "operations"
@@ -168,8 +168,8 @@
         "company": "Moderna Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "finance",
-          "legal"
+          "legal",
+          "finance"
         ],
         "predicted": [
           "legal"
@@ -189,8 +189,8 @@
         "company": "Tesla Inc.",
         "sector": "Clean Energy / Auto",
         "target": [
-          "rd",
-          "legal"
+          "legal",
+          "rd"
         ],
         "predicted": [
           "rd"
@@ -231,8 +231,8 @@
         "company": "Toyota Motor Corp.",
         "sector": "Clean Energy / Auto",
         "target": [
-          "finance",
-          "operations"
+          "operations",
+          "finance"
         ],
         "predicted": [
           "rd"
@@ -252,8 +252,8 @@
         "company": "JPMorgan Chase",
         "sector": "Banking / Financial Services",
         "target": [
-          "finance",
-          "legal"
+          "legal",
+          "finance"
         ],
         "predicted": [
           "finance"
@@ -273,12 +273,12 @@
         "company": "JPMorgan Chase",
         "sector": "Banking / Financial Services",
         "target": [
-          "finance",
-          "legal"
+          "legal",
+          "finance"
         ],
         "predicted": [
-          "finance",
-          "legal"
+          "legal",
+          "finance"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -295,8 +295,8 @@
         "company": "Goldman Sachs",
         "sector": "Banking / Financial Services",
         "target": [
-          "finance",
-          "operations"
+          "operations",
+          "finance"
         ],
         "predicted": [
           "finance"
@@ -321,9 +321,9 @@
       "test_ground_truth_success_rate": 0.71
     },
     "training_optimization": {
-      "initial_loss_bce": 0.33078,
-      "final_loss_bce": 0.082288,
-      "loss_reduction_pct": 75.12,
+      "initial_loss_bce": 0.330764,
+      "final_loss_bce": 0.082319,
+      "loss_reduction_pct": 75.11,
       "calibrated_weights": [
         0.1,
         0.1,
@@ -332,31 +332,31 @@
     },
     "conformal_calibration": {
       "target_coverage": 0.95,
-      "calibrated_quantile_cutoff_q_hat": 0.1685,
-      "out_of_sample_empirical_coverage": 0.9487,
+      "calibrated_quantile_cutoff_q_hat": 0.1671,
+      "out_of_sample_empirical_coverage": 0.9475,
       "abstention_count": 232,
       "caution_flags_count": 0
     },
     "out_of_sample_benchmarks": {
       "baseline_1_uniform": {
-        "ece": 0.248839,
-        "mce": 0.542961,
-        "brier_score": 0.096171,
-        "nll": 0.323436
+        "ece": 0.247199,
+        "mce": 0.6043,
+        "brier_score": 0.094834,
+        "nll": 0.320414
       },
       "baseline_2_similarity_only": {
-        "ece": 0.060632,
-        "mce": 0.120471,
-        "brier_score": 0.211541,
-        "nll": 0.617761
+        "ece": 0.029135,
+        "mce": 0.078643,
+        "brier_score": 0.205964,
+        "nll": 0.603206
       },
       "mars_calibrated": {
-        "ece": 0.074652,
-        "mce": 0.160393,
-        "brier_score": 0.008658,
-        "nll": 0.079457,
+        "ece": 0.07416,
+        "mce": 0.159264,
+        "brier_score": 0.008537,
+        "nll": 0.078894,
         "ece_reduction_vs_uniform_pct": 70.0,
-        "brier_improvement_vs_sim_only_pct": 95.91
+        "brier_improvement_vs_sim_only_pct": 95.86
       }
     }
   },

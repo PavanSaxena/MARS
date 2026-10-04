@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Set
 
-from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases
+from evaluation.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases
 
 
 DEPT_MAP = {

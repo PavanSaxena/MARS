@@ -31,7 +31,7 @@ if str(MARS_DIR) not in sys.path:
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from evaluation.beir.benchmark_dataset import load_verified_2023_dataset
+from evaluation.benchmark_dataset import load_verified_2023_dataset
 from app.storage.embedder import get_embedding, get_embeddings
 from app.services.case_retrieval_service import _tokenize, _calculate_lexical_score, _calculate_case_similarity
 

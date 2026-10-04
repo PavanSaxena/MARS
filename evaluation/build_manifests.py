@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from evaluation.leakage_safe.dataset import REPO_ROOT, build_split_manifest, load_cases
+from evaluation.dataset import REPO_ROOT, build_split_manifest, load_cases
 
 
 def main() -> None:
