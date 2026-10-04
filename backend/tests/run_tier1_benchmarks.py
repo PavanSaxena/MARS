@@ -24,8 +24,8 @@ if backend_root not in sys.path:
 if mars_root not in sys.path:
     sys.path.insert(0, mars_root)
 
-from evaluation.longitudinal_evaluation import run_longitudinal_evaluation
-from evaluation.multicorp_benchmark import run_multicorp_benchmark
+from evaluation.eval_longitudinal import run_longitudinal_evaluation
+from evaluation.eval_routing import run_multicorp_benchmark
 from evaluation.statistical_significance import paired_bootstrap_test, compute_fleiss_kappa
 from app.reasoning.conformal_predictor import ConformalRiskController
 from app.reasoning.calibration_metrics import compute_calibration_curve

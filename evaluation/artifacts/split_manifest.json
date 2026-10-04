@@ -1,5 +1,5 @@
 {
-  "protocol": "MARS evaluation_v2 leakage-safe chronological split",
+  "protocol": "MARS leakage-safe chronological split",
   "rules": [
     "Training/calibration/test assignment is based on decision_date.",
     "Replay retrieval must exclude the target case.",

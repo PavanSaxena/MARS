@@ -599,3 +599,63 @@ def run_llm_with_tools(
     final_message = llm.invoke(messages)
     logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
+
+
+def execute_department_agent(
+    state: State,
+    department: str,
+    agent_title: str,
+    output_key: str,
+    role_points: List[str],
+    rules: List[str],
+) -> Dict[str, Any]:
+    """Generic runner for department specialist agents (finance, legal, operations, rd).
+
+    Handles active department routing gating, case retrieval, tool binding,
+    LLM invocation, structured output parsing, and evidence attachment.
+    """
+    dept_code = department.lower()
+    active_depts = state.get("active_departments")
+    if active_depts is not None and dept_code not in active_depts:
+        return {output_key: None}
+
+    logger.info("agent_started agent=%s", dept_code)
+    messages, query = extract_messages_and_query(state)
+    if not messages:
+        return empty_agent_result(output_key, messages)
+
+    logger.info("retrieval_started agent=%s", dept_code)
+    cases, case_text, warnings = retrieve_case_context(query=query, domain=dept_code, k=5)
+    logger.info("retrieval_finished agent=%s cases=%d warnings=%s", dept_code, len(cases), warnings)
+
+    agent_name = f"{dept_code}_agent"
+    from app.tools.tool_registry import get_tool_objects_for_agent
+    tools = get_tool_objects_for_agent(agent_name)
+
+    prompt = build_json_prompt(
+        agent_title=agent_title,
+        role_points=role_points,
+        rules=rules,
+        query=query,
+        case_text=case_text,
+        tool_names=[t.name for t in tools],
+    )
+
+    logger.info("llm_started agent=%s", dept_code)
+    content, tools_used, final_message = run_llm_with_tools(
+        get_llm(state.get("model")), prompt, tools, agent_name=agent_name
+    )
+    logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
+
+    parsed_output = parse_structured_output(content)
+    parsed_output.update(
+        build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence"))
+    )
+    if warnings:
+        parsed_output["warnings"] = warnings
+    logger.info("agent_finished agent=%s", dept_code)
+
+    return {
+        output_key: parsed_output,
+        "messages": messages + [final_message],
+    }

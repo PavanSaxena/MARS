@@ -1,16 +1,18 @@
-"""Retrieval Evaluation Engine for MARS against Standard Baselines.
+"""Retrieval Evaluation Engine and Indexing for MARS.
 
-Theoretical Foundations:
-- BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models (Thakur et al., NeurIPS 2021)
-- RAGChecker: A Fine-grained Framework for Diagnosing Retrieval-Augmented Generation (Ru et al., NeurIPS 2024)
-- Maximal Marginal Relevance (Carbonell & Goldstein, 1998)
-
-Evaluates:
-  1. Baseline R1: BM25 Lexical Retrieval (Robertson & Zaragoza; Thakur et al. 2021)
-  2. Baseline R2: Naive Dense Bi-Encoder Vector Retrieval (all-MiniLM-L6-v2 flat cosine similarity)
-  3. Proposed: MARS Domain-Filtered Hybrid Retrieval + MMR Diversity + Cross-Dept Expansion
+Consolidates:
+1. Leakage-Safe Historical Precedent Retrieval:
+   - Temporal leave-target-out retrieval evaluation over chronological splits.
+   - Self-contained BM25Index, DenseIndex, and HybridIndex (with MMR).
+2. BEIR / RAGChecker Benchmark:
+   - Evaluation comparing Baseline R1 (BM25), Baseline R2 (Naive Dense Vector),
+     and MARS (Domain-Filtered Hybrid + MMR Diversity + Cross-Dept Expansion).
 """
 
+from __future__ import annotations
+
+import argparse
+import datetime
 import json
 import math
 import os
@@ -19,11 +21,11 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
-from typing import List, Dict, Any, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
-# Add backend to sys.path so app modules are available
+# Ensure backend and MARS root are on sys.path
 MARS_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = MARS_DIR / "backend"
 if str(MARS_DIR) not in sys.path:
@@ -31,14 +33,181 @@ if str(MARS_DIR) not in sys.path:
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from evaluation.benchmark_dataset import load_verified_2023_dataset
-from app.storage.embedder import get_embedding, get_embeddings
-from app.services.case_retrieval_service import _tokenize, _calculate_lexical_score, _calculate_case_similarity
+from evaluation.dataset import (
+    REPO_ROOT,
+    CaseRecord,
+    decision_text,
+    load_cases,
+    load_verified_2023_dataset,
+    replay_query_text,
+    split_cases,
+    visible_corpus,
+)
+from evaluation.metrics import (
+    binary_relevance_metrics,
+    intra_list_diversity,
+    mean_dicts,
+    ndcg_at_k,
+)
+
+try:
+    from app.storage.embedder import get_embedding, get_embeddings
+except ImportError:
+    from backend.app.storage.embedder import get_embedding, get_embeddings
+
+try:
+    from app.services.case_retrieval_service import (
+        _calculate_case_similarity,
+        _calculate_lexical_score,
+        _tokenize as _service_tokenize,
+    )
+except ImportError:
+    try:
+        from backend.app.services.case_retrieval_service import (
+            _calculate_case_similarity,
+            _calculate_lexical_score,
+            _tokenize as _service_tokenize,
+        )
+    except ImportError:
+        _service_tokenize = None
+
+
+TOKEN_RE = re.compile(r"\b[a-zA-Z0-9_\-$]+\b")
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+    "has", "in", "is", "it", "its", "of", "on", "or", "that", "the",
+    "to", "was", "were", "will", "with", "we", "our", "should", "how",
+    "what", "when", "where", "which", "who", "why", "can", "could", "do",
+    "does", "did", "have", "had", "been", "would", "about", "into", "over",
+}
+
+
+def tokenize(text: str) -> List[str]:
+    return [tok.lower() for tok in TOKEN_RE.findall(text or "") if len(tok) > 1 and tok.lower() not in STOPWORDS]
 
 
 # =============================================================================
-# Baseline R1: BM25 Lexical Search Implementation (Robertson & Zaragoza)
+# Leakage-Safe Index Primitives
 # =============================================================================
+
+class BM25Index:
+    def __init__(self, docs: Sequence[Dict[str, Any]], text_key: str = "decision_text", k1: float = 1.5, b: float = 0.75):
+        self.docs = list(docs)
+        self.k1 = k1
+        self.b = b
+        self.doc_tokens = [tokenize(str(doc.get(text_key, ""))) for doc in self.docs]
+        self.doc_lens = [len(tokens) for tokens in self.doc_tokens]
+        self.avgdl = sum(self.doc_lens) / max(1, len(self.doc_lens))
+        df: Counter[str] = Counter()
+        for tokens in self.doc_tokens:
+            df.update(set(tokens))
+        self.idf = {
+            term: math.log(1 + (len(self.docs) - freq + 0.5) / (freq + 0.5))
+            for term, freq in df.items()
+        }
+
+    def scores(self, query: str) -> np.ndarray:
+        q_tokens = tokenize(query)
+        scores = np.zeros(len(self.docs), dtype=np.float32)
+        for idx, tokens in enumerate(self.doc_tokens):
+            tf = Counter(tokens)
+            doc_len = self.doc_lens[idx] or 1
+            score = 0.0
+            for qt in q_tokens:
+                freq = tf.get(qt, 0)
+                if not freq:
+                    continue
+                denom = freq + self.k1 * (1 - self.b + self.b * (doc_len / max(self.avgdl, 1e-9)))
+                score += self.idf.get(qt, 0.0) * (freq * (self.k1 + 1)) / max(denom, 1e-9)
+            scores[idx] = score
+        return scores
+
+    def retrieve(self, query: str, k: int = 10) -> List[Tuple[Dict[str, Any], float]]:
+        scores = self.scores(query)
+        order = np.argsort(-scores)[:k]
+        return [(self.docs[i], float(scores[i])) for i in order]
+
+
+class DenseIndex:
+    def __init__(self, docs: Sequence[Dict[str, Any]]):
+        self.docs = list(docs)
+        texts = [str(doc.get("decision_text", "")) for doc in self.docs]
+        self.embeddings = np.array(get_embeddings(texts), dtype=np.float32)
+
+    def retrieve(self, query: str, k: int = 10) -> List[Tuple[Dict[str, Any], float]]:
+        q_emb = np.array(get_embedding(query), dtype=np.float32)
+        norms = np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(q_emb)
+        scores = np.dot(self.embeddings, q_emb) / np.maximum(1e-9, norms)
+        order = np.argsort(-scores)[:k]
+        return [(self.docs[i], float(scores[i])) for i in order]
+
+
+class HybridIndex:
+    def __init__(
+        self,
+        docs: Sequence[Dict[str, Any]],
+        dense_weight: float = 0.65,
+        use_mmr: bool = False,
+        mmr_lambda: float = 0.65,
+    ):
+        self.docs = list(docs)
+        self.bm25 = BM25Index(self.docs)
+        self.dense_weight = dense_weight
+        self.use_mmr = use_mmr
+        self.mmr_lambda = mmr_lambda
+        self._dense: DenseIndex | None = None
+
+    def _ensure_dense(self) -> DenseIndex:
+        if self._dense is None:
+            self._dense = DenseIndex(self.docs)
+        return self._dense
+
+    def retrieve(self, query: str, k: int = 10) -> List[Tuple[Dict[str, Any], float]]:
+        bm25_scores = _minmax(self.bm25.scores(query))
+        if self.dense_weight > 0.0:
+            dense_scores = _minmax(self._dense_scores(query))
+            combined = (1.0 - self.dense_weight) * bm25_scores + self.dense_weight * dense_scores
+        else:
+            combined = bm25_scores
+
+        if not self.use_mmr:
+            order = np.argsort(-combined)[:k]
+            return [(self.docs[i], float(combined[i])) for i in order]
+
+        # MMR Selection
+        doc_tokens = [set(tokenize(str(d.get("decision_text", "")))) for d in self.docs]
+        candidates = list(np.argsort(-combined)[: min(len(self.docs), max(k * 3, 20))])
+        selected: List[int] = []
+
+        while candidates and len(selected) < k:
+            if not selected:
+                best = candidates.pop(0)
+                selected.append(best)
+                continue
+
+            def mmr_score(cand_idx: int) -> float:
+                rel = float(combined[cand_idx])
+                cand_tok = doc_tokens[cand_idx]
+                max_sim = max((_jaccard(cand_tok, doc_tokens[s]) for s in selected), default=0.0)
+                return self.mmr_lambda * rel - (1.0 - self.mmr_lambda) * max_sim
+
+            best = max(candidates, key=mmr_score)
+            candidates.remove(best)
+            selected.append(best)
+
+        return [(self.docs[i], float(combined[i])) for i in selected]
+
+    def _dense_scores(self, query: str) -> np.ndarray:
+        dense = self._ensure_dense()
+        q_emb = np.array(get_embedding(query), dtype=np.float32)
+        norms = np.linalg.norm(dense.embeddings, axis=1) * np.linalg.norm(q_emb)
+        return np.dot(dense.embeddings, q_emb) / np.maximum(1e-9, norms)
+
+
+# =============================================================================
+# BEIR / RAGChecker Baseline Retrievers
+# =============================================================================
+
 class BM25Retriever:
     """Standard Okapi BM25 implementation for zero-shot text retrieval benchmark."""
 
@@ -53,72 +222,68 @@ class BM25Retriever:
 
         for doc in corpus:
             text = f"{doc.get('decision_title', '')} {doc.get('decision_description', '')} {doc.get('decision_rationale', '')} {doc.get('cross_dept_impact', '')}"
-            tokens = list(_tokenize(text))
+            tokens = list(_service_tokenize(text)) if _service_tokenize else tokenize(text)
             self.doc_tokens.append(tokens)
             self.doc_lens.append(len(tokens))
             unique_terms = set(tokens)
             for t in unique_terms:
                 self.df[t] += 1
 
-        self.avgdl = sum(self.doc_lens) / max(1, self.N)
+        self.avg_doc_len = sum(self.doc_lens) / max(1, self.N)
         self.idf = {}
-        for term, freq in self.df.items():
-            # Standard Lucene/Okapi BM25 IDF formula
-            self.idf[term] = math.log(1.0 + (self.N - freq + 0.5) / (freq + 0.5))
+        for t, freq in self.df.items():
+            self.idf[t] = math.log((self.N - freq + 0.5) / (freq + 0.5) + 1.0)
 
-    def retrieve(self, query: str, k: int = 5) -> List[Tuple[Dict[str, Any], float]]:
-        q_tokens = _tokenize(query)
+    def retrieve(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+        tokens = list(_service_tokenize(query)) if _service_tokenize else tokenize(query)
         scores = []
-
-        for idx, tokens in enumerate(self.doc_tokens):
+        for i in range(self.N):
+            doc_len = self.doc_lens[i]
+            tf = Counter(self.doc_tokens[i])
             score = 0.0
-            doc_len = self.doc_lens[idx]
-            term_freqs = Counter(tokens)
+            for t in tokens:
+                if t in tf:
+                    t_idf = self.idf.get(t, 0.0)
+                    t_tf = tf[t]
+                    denom = t_tf + self.k1 * (1.0 - self.b + self.b * (doc_len / self.avg_doc_len))
+                    score += t_idf * (t_tf * (self.k1 + 1.0)) / denom
+            scores.append((score, i))
 
-            for qt in q_tokens:
-                if qt in term_freqs:
-                    freq = term_freqs[qt]
-                    idf_val = self.idf.get(qt, 0.0)
-                    denom = freq + self.k1 * (1.0 - self.b + self.b * (doc_len / self.avgdl))
-                    score += idf_val * (freq * (self.k1 + 1.0)) / max(1e-6, denom)
-
-            scores.append((self.corpus[idx], score))
-
-        scores.sort(key=lambda x: x[1], reverse=True)
-        return scores[:k]
+        scores.sort(key=lambda x: x[0], reverse=True)
+        top_k = scores[:k]
+        results = []
+        for s, idx in top_k:
+            res = dict(self.corpus[idx])
+            res["score"] = s
+            results.append(res)
+        return results
 
 
-# =============================================================================
-# Baseline R2: Naive Dense Vector Retrieval (Flat Bi-Encoder Cosine)
-# =============================================================================
 class NaiveDenseRetriever:
-    """Flat cosine similarity search over unpartitioned all-MiniLM-L6-v2 embeddings."""
+    """Standard Dense Vector Retriever using flat cosine similarity."""
 
     def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray):
         self.corpus = corpus
-        self.embeddings = corpus_embeddings  # Normalized (N, 384)
+        self.corpus_embeddings = corpus_embeddings
 
-    def retrieve(self, query_emb: np.ndarray, k: int = 5) -> List[Tuple[Dict[str, Any], float]]:
-        # Cosine similarity for normalized vectors is simply dot product
-        sims = np.dot(self.embeddings, query_emb)
-        top_indices = np.argsort(-sims)[:k]
-        return [(self.corpus[idx], float(sims[idx])) for idx in top_indices]
+    def retrieve(self, query_emb: np.ndarray, k: int = 5) -> List[Dict[str, Any]]:
+        scores = np.dot(self.corpus_embeddings, query_emb)
+        top_indices = np.argsort(scores)[::-1][:k]
+        results = []
+        for idx in top_indices:
+            res = dict(self.corpus[idx])
+            res["score"] = float(scores[idx])
+            results.append(res)
+        return results
 
 
-# =============================================================================
-# Proposed System: MARS Domain-Filtered Hybrid Retrieval + MMR
-# =============================================================================
 class MARSHybridRetriever:
-    """
-    Domain-filtered hybrid retrieval with cross-department impact expansion,
-    lexical reranking, and Maximal Marginal Relevance (MMR) diversity filtering.
-    """
+    """Proposed MARS Retriever: Domain-filtered hybrid + MMR diversity."""
 
     def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray):
         self.corpus = corpus
-        self.embeddings = corpus_embeddings
-        self.mmr_lambda = 0.65
-        self.candidate_count = 25
+        self.corpus_embeddings = corpus_embeddings
+        self.bm25 = BM25Retriever(corpus)
 
     def retrieve(
         self,
@@ -126,200 +291,157 @@ class MARSHybridRetriever:
         query_emb: np.ndarray,
         target_department: str,
         k: int = 5,
-        as_of_date: Optional[str] = None
-    ) -> List[Tuple[Dict[str, Any], float]]:
-        # 1. Filter candidates by department + cross-department impact + time-safe cutoff
-        candidate_indices = []
-        target_dept_lower = target_department.lower()
+        as_of_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        # Dense scores
+        dense_scores = np.dot(self.corpus_embeddings, query_emb)
+        # BM25 scores
+        bm25_raw = self.bm25.retrieve(query, k=len(self.corpus))
+        bm25_score_map = {d["case_id"]: d["score"] for d in bm25_raw}
+        max_bm25 = max(bm25_score_map.values()) if bm25_score_map else 1.0
 
+        hybrid_candidates = []
         for idx, doc in enumerate(self.corpus):
-            # Time safe boundary
-            if as_of_date and doc.get("decision_date") and doc.get("decision_date") > as_of_date:
+            if as_of_date and doc.get("decision_date", "") > as_of_date:
                 continue
 
-            doc_dept = doc.get("department", "").lower()
-            cross_impact = str(doc.get("cross_dept_impact", "")).lower()
+            cid = doc["case_id"]
+            d_score = float(dense_scores[idx])
+            b_score = bm25_score_map.get(cid, 0.0) / max(1e-6, max_bm25)
+            dept_match = 1.0 if doc.get("department") == target_department else 0.4
 
-            # Domain match OR cross-department impact match
-            if doc_dept == target_dept_lower or target_dept_lower in cross_impact:
-                candidate_indices.append(idx)
-
-        if not candidate_indices:
-            candidate_indices = list(range(len(self.corpus)))
-
-        # 2. Vector similarities for candidates
-        cand_embs = self.embeddings[candidate_indices]
-        sims = np.dot(cand_embs, query_emb)
-
-        # Top candidates
-        sub_top = np.argsort(-sims)[:self.candidate_count]
-        
-        # 3. Composite contextual reranking (0.65 vector + 0.35 lexical)
-        query_tokens = _tokenize(query)
-        scored_candidates = []
-
-        for sub_idx in sub_top:
-            real_idx = candidate_indices[sub_idx]
-            doc = self.corpus[real_idx]
-            vec_sim = float(sims[sub_idx])
-            lex_score = _calculate_lexical_score(query_tokens, doc)
-            composite_score = round(0.65 * vec_sim + 0.35 * lex_score, 4)
-
-            doc_text = f"{doc.get('decision_title', '')} {doc.get('decision_description', '')} {doc.get('decision_rationale', '')}"
-            case_tokens = _tokenize(doc_text)
-
-            scored_candidates.append({
+            raw_score = 0.55 * d_score + 0.25 * b_score + 0.20 * dept_match
+            hybrid_candidates.append({
+                "idx": idx,
                 "doc": doc,
-                "vector_sim": vec_sim,
-                "composite_score": composite_score,
-                "tokens": case_tokens,
-                "real_idx": real_idx,
+                "raw_score": raw_score,
+                "embedding": self.corpus_embeddings[idx],
             })
 
-        scored_candidates.sort(key=lambda x: x["composite_score"], reverse=True)
+        hybrid_candidates.sort(key=lambda x: x["raw_score"], reverse=True)
+        pool = hybrid_candidates[: min(len(hybrid_candidates), k * 3)]
 
-        # 4. Maximal Marginal Relevance (MMR)
-        selected = []
-        remaining = list(scored_candidates)
+        selected: List[Dict[str, Any]] = []
+        selected_embs: List[np.ndarray] = []
+        mmr_lambda = 0.70
 
-        while remaining and len(selected) < k:
-            best_mmr = -999.0
+        while pool and len(selected) < k:
+            if not selected:
+                best = pool.pop(0)
+                selected.append(best["doc"])
+                selected_embs.append(best["embedding"])
+                continue
+
             best_idx = -1
+            best_mmr = -1e9
+            for i, cand in enumerate(pool):
+                relevance = cand["raw_score"]
+                redundancy = max(float(np.dot(cand["embedding"], s_emb)) for s_emb in selected_embs)
+                mmr_val = mmr_lambda * relevance - (1.0 - mmr_lambda) * redundancy
+                if mmr_val > best_mmr:
+                    best_mmr = mmr_val
+                    best_idx = i
 
-            for idx, cand in enumerate(remaining):
-                if not selected:
-                    redundancy = 0.0
-                else:
-                    redundancies = [
-                        _calculate_case_similarity(cand["tokens"], s["tokens"])
-                        for s in selected
-                    ]
-                    redundancy = max(redundancies) if redundancies else 0.0
+            chosen = pool.pop(best_idx)
+            selected.append(chosen["doc"])
+            selected_embs.append(chosen["embedding"])
 
-                mmr_score = (self.mmr_lambda * cand["composite_score"]) - ((1.0 - self.mmr_lambda) * redundancy)
-                if mmr_score > best_mmr:
-                    best_mmr = mmr_score
-                    best_idx = idx
-
-            if best_idx == -1:
-                break
-            selected.append(remaining.pop(best_idx))
-
-        return [(item["doc"], item["composite_score"]) for item in selected]
+        return selected
 
 
 # =============================================================================
-# Evaluation Metrics (BEIR / RAGChecker Standard)
+# Evaluation Helpers & Metrics
 # =============================================================================
+
+def _minmax(values: np.ndarray) -> np.ndarray:
+    lo = float(np.min(values))
+    hi = float(np.max(values))
+    if math.isclose(lo, hi):
+        return np.zeros_like(values, dtype=np.float32)
+    return ((values - lo) / (hi - lo)).astype(np.float32)
+
+
+def _jaccard(a: Set[str], b: Set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def compute_ndcg_at_k(retrieved_docs: List[Dict[str, Any]], target_doc: Dict[str, Any], k: int = 5) -> float:
-    """Compute Normalized Discounted Cumulative Gain (nDCG@K) with graded relevance.
-
-    Graded relevance (Järvelin & Kekäläinen, TOIS 2002):
-      rel=3: exact target case retrieved
-      rel=2: same dept + shared cross-dept impact
-      rel=1: same dept only
-      rel=0: different dept / no match
-
-    IDCG is computed per-query from the relevance scores actually achievable
-    in the retrieved list — sorted in ideal order — so nDCG is always in [0, 1].
-    """
-    target_id = target_doc["case_id"]
+    target_id = target_doc.get("case_id")
     target_dept = target_doc.get("department")
-    target_cross = str(target_doc.get("cross_dept_impact", ""))
-    target_cross_depts = {d.strip() for d in target_cross.split(";") if d.strip()}
+    target_action = target_doc.get("action_type")
 
-    # Assign relevance for each retrieved doc
-    gains = []
-    for doc in retrieved_docs[:k]:
-        rel = 0
-        if doc["case_id"] == target_id:
-            rel = 3
-        elif doc.get("department") == target_dept and target_cross_depts and any(
-            d in str(doc.get("cross_dept_impact", "")) for d in target_cross_depts
-        ):
-            rel = 2
+    dcg = 0.0
+    for i, doc in enumerate(retrieved_docs[:k]):
+        gain = 0.0
+        if doc.get("case_id") == target_id:
+            gain = 3.0
+        elif doc.get("department") == target_dept and doc.get("action_type") == target_action:
+            gain = 2.0
         elif doc.get("department") == target_dept:
-            rel = 1
-        gains.append(rel)
+            gain = 1.0
 
-    # DCG
-    dcg = sum(
-        (2.0 ** rel - 1.0) / math.log2(rank + 2)
-        for rank, rel in enumerate(gains)
-        if rel > 0
-    )
+        dcg += gain / math.log2(i + 2)
 
-    # IDCG: sort gains in ideal (descending) order
-    ideal_gains = sorted(gains, reverse=True)
-    idcg = sum(
-        (2.0 ** rel - 1.0) / math.log2(rank + 2)
-        for rank, rel in enumerate(ideal_gains)
-        if rel > 0
-    )
-
-    return dcg / idcg if idcg > 0 else 0.0
+    idcg = 3.0 / math.log2(2) + 2.0 / math.log2(3) + 1.0 / math.log2(4)
+    return dcg / max(1e-9, idcg)
 
 
 def evaluate_retriever(
     name: str,
-    retrieve_fn,
+    retriever_fn: Any,
     queries: List[Dict[str, Any]],
-    corpus: List[Dict[str, Any]]
+    corpus: List[Dict[str, Any]],
+    k: int = 5,
 ) -> Dict[str, Any]:
-    """Run evaluation across all queries and compute official BEIR/RAGAS IR metrics."""
     hits_at_1 = 0
     hits_at_3 = 0
     hits_at_5 = 0
     reciprocal_ranks = []
     ndcg_scores = []
+    latencies = []
+
     dept_correct_count = 0
     total_retrieved = 0
     cross_dept_hits = 0
     cross_dept_opportunities = 0
-    latencies = []
 
     for item in queries:
         target_id = item["case_id"]
         target_dept = item.get("department")
-        cross_impact = str(item.get("cross_dept_impact", ""))
-        impacted_depts = [d.strip() for d in cross_impact.split(";") if d.strip() and d.strip() != target_dept]
+        impacted_str = item.get("cross_dept_impact", "")
+        impacted_depts = [d.strip() for d in impacted_str.split(",") if d.strip() and d.strip() != target_dept]
 
         start_t = time.perf_counter()
-        retrieved_results = retrieve_fn(item)
-        latencies.append((time.perf_counter() - start_t) * 1000.0)
+        retrieved_docs = retriever_fn(item)
+        latencies.append((time.perf_counter() - start_t) * 1000)
 
-        retrieved_docs = [r[0] for r in retrieved_results]
-        retrieved_ids = [d["case_id"] for d in retrieved_docs]
+        retrieved_ids = [d.get("case_id") for d in retrieved_docs]
 
-        # Recall@K / Hit@K
-        if target_id in retrieved_ids[:1]:
+        if len(retrieved_ids) > 0 and retrieved_ids[0] == target_id:
             hits_at_1 += 1
         if target_id in retrieved_ids[:3]:
             hits_at_3 += 1
         if target_id in retrieved_ids[:5]:
             hits_at_5 += 1
 
-        # MRR
         if target_id in retrieved_ids:
             rank = retrieved_ids.index(target_id) + 1
             reciprocal_ranks.append(1.0 / rank)
         else:
             reciprocal_ranks.append(0.0)
 
-        # nDCG@5
         ndcg_scores.append(compute_ndcg_at_k(retrieved_docs, item, k=5))
 
-        # Department routing accuracy
         for d in retrieved_docs[:5]:
             total_retrieved += 1
             if d.get("department") == target_dept:
                 dept_correct_count += 1
 
-        # Cross-department impact recall
         if impacted_depts:
             cross_dept_opportunities += 1
             retrieved_depts = {d.get("department") for d in retrieved_docs[:5]}
-            # Did we retrieve from at least one impacted department?
             if any(imp in retrieved_depts for imp in impacted_depts):
                 cross_dept_hits += 1
 
@@ -338,8 +460,127 @@ def evaluate_retriever(
     }
 
 
+def relevance_sets(target: CaseRecord, corpus: Sequence[Dict[str, Any]]) -> Tuple[Set[str], Dict[str, int]]:
+    cross_dept_terms = {tok.lower() for tok in tokenize(target.cross_dept_impact)}
+    graded: Dict[str, int] = {}
+    exact: Set[str] = set()
+
+    for doc in corpus:
+        cid = doc["case_id"]
+        same_dept = doc.get("department") == target.department
+        same_action = doc.get("action_type") == target.action_type
+        doc_tokens = set(tokenize(f"{doc.get('decision_title', '')} {doc.get('decision_description', '')}"))
+
+        if same_dept and same_action:
+            graded[cid] = 3
+            exact.add(cid)
+        elif same_dept:
+            graded[cid] = 2
+        elif cross_dept_terms & doc_tokens:
+            graded[cid] = 1
+
+    return exact, graded
+
+
+# =============================================================================
+# High-Level Benchmark Runners
+# =============================================================================
+
+def run_retrieval_evaluation(
+    *,
+    split_name: str = "test",
+    max_queries: int | None = None,
+    include_dense: bool = False,
+    output: Path | None = None,
+) -> Dict[str, Any]:
+    """Execute leakage-safe temporal retrieval evaluation."""
+    cases = load_cases()
+    splits = split_cases(cases)
+    query_cases = splits[split_name]
+    if max_queries is not None:
+        query_cases = query_cases[:max_queries]
+
+    systems = ["bm25", "hybrid_lexical_proxy"]
+    if include_dense:
+        systems.extend(["dense", "hybrid_mmr"])
+
+    per_system_metrics: Dict[str, List[Dict[str, float]]] = {s: [] for s in systems}
+    leakage_violations = []
+    per_case = []
+
+    for case in query_cases:
+        query = replay_query_text(case)
+        corpus = visible_corpus(cases, as_of_date=case.decision_date, target_case_id=case.case_id)
+        if not corpus:
+            continue
+
+        corpus_ids = {d["case_id"] for d in corpus}
+        if case.case_id in corpus_ids:
+            leakage_violations.append({"case_id": case.case_id, "violation": "target_case_in_visible_corpus"})
+
+        exact_rel, graded_rel = relevance_sets(case, corpus)
+        bm25_index = BM25Index(corpus)
+        retrieved_map: Dict[str, List[str]] = {}
+
+        bm25_retrieved = [doc["case_id"] for doc, _ in bm25_index.retrieve(query, k=10)]
+        retrieved_map["bm25"] = bm25_retrieved
+
+        hybrid_proxy_retrieved = [
+            doc["case_id"]
+            for doc, _ in HybridIndex(corpus, dense_weight=0.0, use_mmr=True).retrieve(query, k=10)
+        ]
+        retrieved_map["hybrid_lexical_proxy"] = hybrid_proxy_retrieved
+
+        if include_dense:
+            dense_index = DenseIndex(corpus)
+            retrieved_map["dense"] = [doc["case_id"] for doc, _ in dense_index.retrieve(query, k=10)]
+            hybrid_mmr_index = HybridIndex(corpus, dense_weight=0.65, use_mmr=True)
+            retrieved_map["hybrid_mmr"] = [doc["case_id"] for doc, _ in hybrid_mmr_index.retrieve(query, k=10)]
+
+        case_entry: Dict[str, Any] = {
+            "case_id": case.case_id,
+            "department": case.department,
+            "decision_date": case.decision_date,
+            "systems": {},
+        }
+
+        corpus_map = {d["case_id"]: d for d in corpus}
+        for system_name, retrieved_ids in retrieved_map.items():
+            metrics = binary_relevance_metrics(retrieved_ids, exact_rel, k_values=(1, 3, 5, 10))
+            retrieved_docs = [corpus_map[cid] for cid in retrieved_ids if cid in corpus_map]
+            metrics["diversity_at_10"] = intra_list_diversity(retrieved_docs)
+            per_system_metrics[system_name].append(metrics)
+            case_entry["systems"][system_name] = {
+                "retrieved_case_ids": retrieved_ids[:5],
+                "metrics": metrics,
+            }
+
+        per_case.append(case_entry)
+
+    summary = {system_name: mean_dicts(rows) for system_name, rows in per_system_metrics.items()}
+    unavailable = []
+    if not include_dense:
+        unavailable = ["dense", "hybrid_mmr (requires embeddings)"]
+
+    result = {
+        "protocol": "MARS leakage-safe temporal retrieval evaluation",
+        "split": split_name,
+        "queries_evaluated": len(per_case),
+        "summary": summary,
+        "unavailable_systems": unavailable,
+        "leakage_violations": leakage_violations,
+        "per_case": per_case,
+    }
+
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+    return result
+
+
 def run_retrieval_benchmark() -> Dict[str, Any]:
-    """Execute full retrieval evaluation comparing Baselines R1, R2, and MARS."""
+    """Execute full BEIR / RAGChecker retrieval benchmark on 2023 dataset."""
     print("=" * 80)
     print("RUNNING TIME-SAFE RETRIEVAL BENCHMARK ON 2023 DATASET (640 CASES)")
     print("Literature Standard: Thakur et al. (BEIR NeurIPS 2021) & Ru et al. (NeurIPS 2024)")
@@ -347,31 +588,26 @@ def run_retrieval_benchmark() -> Dict[str, Any]:
 
     corpus = load_verified_2023_dataset()
     N = len(corpus)
-    print(f"Loaded {N} decision cases. Pre-computing embeddings for naive vector and MARS...")
+    print(f"Loaded {N} decision cases. Computing embeddings...")
 
-    # Embed corpus documents once
     docs_text = [
         f"Decision Title: {d['decision_title']}\nDescription: {d['decision_description']}\nRationale: {d['decision_rationale']}\nDepartment: {d['department']}"
         for d in corpus
     ]
     raw_embeddings = get_embeddings(docs_text)
     corpus_embeddings = np.array(raw_embeddings, dtype=np.float32)
-    # Normalize
     norms = np.linalg.norm(corpus_embeddings, axis=1, keepdims=True)
     corpus_embeddings = corpus_embeddings / np.maximum(1e-9, norms)
 
-    print("Embeddings ready. Building retrievers...")
     bm25 = BM25Retriever(corpus)
     naive_dense = NaiveDenseRetriever(corpus, corpus_embeddings)
     mars_hybrid = MARSHybridRetriever(corpus, corpus_embeddings)
 
-    # Pre-embed queries
     query_texts = [item["benchmark_query"] for item in corpus]
     query_embeddings = np.array(get_embeddings(query_texts), dtype=np.float32)
     q_norms = np.linalg.norm(query_embeddings, axis=1, keepdims=True)
     query_embeddings = query_embeddings / np.maximum(1e-9, q_norms)
 
-    # Wrap retrieval calls
     def call_bm25(item):
         return bm25.retrieve(item["benchmark_query"], k=5)
 
@@ -401,32 +637,48 @@ def run_retrieval_benchmark() -> Dict[str, Any]:
     results = {
         "benchmark": "MARS 2023 Retrieval Benchmark",
         "dataset_size": N,
-        "metrics": [res_bm25, res_dense, res_mars]
+        "metrics": [res_bm25, res_dense, res_mars],
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
-    print("\n" + "=" * 80)
-    print(f"{'System':<35} | {'Rec@1':<7} | {'Rec@3':<7} | {'Rec@5':<7} | {'MRR':<7} | {'nDCG@5':<7} | {'DeptPrec':<8} | {'CrossRec':<8} | {'Latency':<7}")
-    print("-" * 105)
-    for m in results["metrics"]:
-        print(
-            f"{m['system']:<35} | {m['recall_at_1']:<7.4f} | {m['recall_at_3']:<7.4f} | "
-            f"{m['recall_at_5']:<7.4f} | {m['mrr']:<7.4f} | {m['ndcg_at_5']:<7.4f} | "
-            f"{m['dept_routing_precision']:<8.4f} | {m['cross_dept_recall']:<8.4f} | {m['mean_latency_ms']:<7.2f}ms"
-        )
-    print("=" * 80)
-
-    # Save results to JSON
-    import datetime
-    results["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-    out_dir = os.path.join(os.path.dirname(__file__), "results")
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, "retrieval_results.json")
-    with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
+    out_dir = MARS_DIR / "evaluation" / "results"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "retrieval_results.json"
+    out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"\nResults saved to: {out_path}")
 
     return results
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="MARS Retrieval Evaluation Engine.")
+    parser.add_argument("--mode", default="leakage_safe", choices=["leakage_safe", "beir", "all"])
+    parser.add_argument("--split", default="test", choices=["train", "validation", "test"])
+    parser.add_argument("--max-queries", type=int, default=None)
+    parser.add_argument("--include-dense", action="store_true")
+    parser.add_argument(
+        "--output",
+        default=str(REPO_ROOT / "evaluation" / "artifacts" / "retrieval_results.json"),
+    )
+    args = parser.parse_args()
+
+    if args.mode in ("leakage_safe", "all"):
+        res = run_retrieval_evaluation(
+            split_name=args.split,
+            max_queries=args.max_queries,
+            include_dense=args.include_dense,
+            output=Path(args.output),
+        )
+        print(json.dumps({
+            "output": args.output,
+            "queries_evaluated": res["queries_evaluated"],
+            "summary": res["summary"],
+            "leakage_violations": len(res["leakage_violations"]),
+        }, indent=2))
+
+    if args.mode in ("beir", "all"):
+        run_retrieval_benchmark()
+
+
 if __name__ == "__main__":
-    run_retrieval_benchmark()
+    main()
