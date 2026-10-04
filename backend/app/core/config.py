@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # langchain's init_chat_model() convention — this is exactly what's
     # passed to init_chat_model, so adding a new option is a one-line change
     # here, nothing else in the codebase needs to know about it.
-    DEFAULT_MODEL: str = "ollama:qwen2.5:3b"
+    DEFAULT_MODEL: str = "groq:openai/gpt-oss-120b"
     AVAILABLE_MODELS: List[str] = [
         "ollama:qwen2.5:3b",
         "google_genai:gemini-3.8-flash",
@@ -59,10 +59,16 @@ class Settings(BaseSettings):
     RETRIEVAL_SIMILARITY_FLOOR: float = 0.25  # Soft floor to eliminate zero/unrelated noise
     RETRIEVAL_MMR_LAMBDA: float = 0.65   # Balance between relevance (1.0) and diversity (0.0)
 
-    # API
+    # API & Logging
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    LOG_LEVEL: str = "INFO"
+
+    # Ollama — when running inside Docker the container cannot reach the host's
+    # loopback address. Set OLLAMA_BASE_URL in .env to point at the host, e.g.
+    # OLLAMA_BASE_URL=http://host.docker.internal:11434
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
 
     def api_key_for_model(self, model_id: str) -> Optional[str]:
         """Return the configured API key for a model's provider, or None."""

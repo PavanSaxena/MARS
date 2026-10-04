@@ -13,6 +13,8 @@ venv/
 # Misc
 .DS_Store
 graph.png
+/docs
+/test_solution3.sh
 
 # Frontend (once added)
 frontend/node_modules/

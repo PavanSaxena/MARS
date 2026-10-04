@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict
 
 from app.agents.common import (
@@ -13,6 +14,8 @@ from app.agents.common import (
 from app.state import State
 from app.tools.tool_registry import get_tool_objects_for_agent
 
+logger = logging.getLogger(__name__)
+
 
 def finance_agent(state: State) -> Dict[str, Any]:
     """
@@ -26,11 +29,14 @@ def finance_agent(state: State) -> Dict[str, Any]:
     if active_depts is not None and "finance" not in active_depts:
         return {"finance_output": None}
 
+    logger.info("agent_started agent=finance")
     messages, query = extract_messages_and_query(state)
     if not messages:
         return empty_agent_result("finance_output", messages)
 
-    cases, case_text, warnings = retrieve_case_context(query=query, domain="finance")
+    logger.info("retrieval_started agent=finance")
+    cases, case_text, warnings = retrieve_case_context(query=query, domain="finance", k=5)
+    logger.info("retrieval_finished agent=finance cases=%d warnings=%s", len(cases), warnings)
     tools = get_tool_objects_for_agent("finance_agent")
 
     prompt = build_json_prompt(
@@ -51,13 +57,16 @@ def finance_agent(state: State) -> Dict[str, Any]:
         tool_names=[t.name for t in tools],
     )
 
+    logger.info("llm_started agent=finance")
     content, tools_used, final_message = run_llm_with_tools(
         get_llm(state.get("model")), prompt, tools, agent_name="finance_agent"
     )
+    logger.info("llm_finished agent=finance tools_used=%s", tools_used)
     parsed_output = parse_finance_output(content)
     parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
     if warnings:
         parsed_output["warnings"] = warnings
+    logger.info("agent_finished agent=finance")
 
     return {
         "finance_output": parsed_output,

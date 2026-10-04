@@ -6,11 +6,8 @@ and empirical research standards (Thakur et al., BEIR NeurIPS 2021; Ru et al., R
 
 import csv
 import json
-import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-
-logger = logging.getLogger("eval.benchmark_dataset")
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Check for lowercase or uppercase dataset dir

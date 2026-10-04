@@ -15,11 +15,12 @@
 2. [End-to-End System Workflow](#end-to-end-system-workflow)
 3. [The Specialist Agent Swarm](#the-specialist-agent-swarm)
 4. [Empirical Reasoning & Confidence Engine](#empirical-reasoning--confidence-engine)
-5. [Leakage-Safe Research Evaluation (`evaluation_v2`)](#leakage-safe-research-evaluation-evaluation_v2)
-6. [Repository Structure](#repository-structure)
+5. [Repository Structure](#repository-structure)
+6. [Configuration & Supported Models](#configuration)
 7. [Quick Start Guide](#quick-start-guide)
 8. [Database & Embedding Sync](#database--embedding-sync)
-9. [Running Tests](#running-tests)
+9. [Running Tests & Benchmarks](#running-tests--benchmarks)
+10. [Documentation & Research Reports](#documentation--research-reports)
 
 ---
 
@@ -37,52 +38,41 @@
 └─────────────────────────────┬──────────────────────────────┘
                               │
        ┌──────────────────────┼──────────────────────┐
-       ▼                      ▼                      ▼
+       ▼ (active)             ▼ (active)             ▽ (pruned - 0 overhead)
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-│Finance Agent │       │ Legal Agent  │       │  R&D Agent   │  (Operations pruned
-└──────┬───────┘       └──────┬───────┘       └──────┬───────┘   if not required)
-       │                      │                      │
-       ├──────────────────────┴──────────────────────┤
-       │  Per-Agent Evidence & Calibrated Grounding: │
-       │  1. Temporal pgvector Retrieval (t < now)   │
-       │  2. Live MCP Tool Execution & Fallbacks     │
-       │  3. Multi-Factor Confidence Scoring         │
-       │  4. Conformal Risk Bounds [L, U]            │
-       └──────────────────────┬──────────────────────┘
-                              │
-                              ▼
+│Finance Agent │       │ Legal Agent  │       │  R&D Agent   │ ...
+│- pgvector RAG│       │- pgvector RAG│       │- Fast exit   │
+│- MCP Tools   │       │- MCP Tools   │       │- 0 DB / LLM  │
+└──────┬───────┘       └──────┬───────┘       └──────────────┘
+       │                      │
+       └──────────────┬───────┘
+                      ▼
 ┌────────────────────────────────────────────────────────────┐
-│      Aggregator Agent: Executive Synthesis & Audit         │
-│  - Ranks departments by calibrated case confidence         │
-│  - Resolves cross-department tensions & strategic trade-offs│
-│  - Enforces strict anti-hallucination refusal guardrails   │
+│  Aggregator Agent: Multi-Factor Synthesis & Governance     │
+│  - Ranked by Calibrated Confidence (Sim + Recency + Succ)  │
+│  - Conformal Risk Bounds (TW-CRC, α = 0.05)                │
+│  - Strict Grounding & Anti-Hallucination Directives        │
 └─────────────────────────────┬──────────────────────────────┘
                               │
                               ▼
-        [ Grounded Strategic Recommendation & Audit Trail ]
+        [ Actionable Strategic Plan + Lineage Trail ]
 ```
 
-1. **Embedding-Space Semantic Vector Gating (Sub-10ms MoE Router):**
-   Queries are embedded and mapped against normalized department prototype centroids. Using dual gating (cosine similarity threshold $\ge 0.32$ and relative margin ratio $\ge 0.70$), MARS dynamically activates only the relevant specialists, achieving an estimated **~74.5% reduction in agent invocations** while preserving cross-functional governance.
+1. **Semantic Vector Gating Router (Embedding-Space MoE):**
+   Encodes queries using `all-MiniLM-L6-v2` and routes via cosine similarity against pre-computed department semantic centroids in $<2\text{ms}$. Pruned agents terminate instantly with zero LLM or database overhead.
 
-2. **Empirical Case-Based Confidence Scoring:**
-   MARS replaces ungrounded LLM self-reported confidence with an objective multi-factor score:
-   $$\text{Confidence} = w_{\text{sim}} \cdot \bar{S} + w_{\text{rec}} \cdot e^{-\lambda \Delta t} + w_{\text{succ}} \cdot P(\text{Success})$$
-   - $\bar{S}$: Mean cosine similarity of retrieved precedent cases.
-   - $e^{-\lambda \Delta t}$: Exponential temporal decay ($\lambda = 0.05/\text{quarter}$), penalizing stale precedents.
-   - $P(\text{Success})$: Historical empirical success rate of prior analogous decisions, classified using a negation-aware corporate outcome parser.
+2. **Empirical Multi-Factor Confidence Engine:**
+   Replaces subjective LLM self-confidence with a mathematically grounded score:
+   $$\text{Confidence} = w_1 \cdot \text{Similarity} + w_2 \cdot \text{Recency} + w_3 \cdot \text{PastSuccess}$$
+   - **Similarity:** Cosine match of retrieved cases.
+   - **Temporal Recency Decay:** Exponential quarterly decay $\exp(-\lambda \Delta q)$ ($\lambda = 0.05$).
+   - **Past Success:** Negation-aware outcome classification (*"zero fines"* $\rightarrow$ positive; penalties/delays $\rightarrow$ negative).
 
-3. **Domain-Specific Calibrated Weight Registry:**
-   Weights are persisted on disk (`calibrated_weights_registry.json`) and tailored to domain characteristics:
-   - **Legal:** High recency weighting ($w_{\text{rec}} = 0.28\text{--}0.40$) to reflect shifting regulatory frameworks (EU DMA, antitrust).
-   - **R&D:** High similarity weighting ($w_{\text{sim}} = 0.55$) to enforce exact technical/architectural parity.
-   - **Finance:** High historical outcome weighting ($w_{\text{succ}} = 0.45$) prioritizing proven ROI and margin preservation.
-   - **Operations:** Balanced weighting across logistics feasibility and fulfillment success.
+3. **Persistent Parameter Registry & Continuous Calibration:**
+   Simplex loss optimization over ground-truth outcomes minimizes Binary Cross-Entropy (BCE) loss on historical disclosures without modifying frozen LLM weights. Weights are stored persistently in `backend/app/reasoning/calibrated_weights_registry.json`.
 
 4. **Distribution-Free Conformal Risk Guarantees:**
-   Applies inductive conformal prediction to calculate finite-sample coverage intervals $[L_i, U_i]$ at significance level $\alpha = 0.05$. Scores map deterministically to governance policies:
-   - **Autonomous Execution (`PROCEED_AUTONOMOUS`):** Tight interval with high lower bound.
-   - **Human Escalation (`ABSTAIN_FOR_HUMAN_REVIEW`):** Wide intervals or low evidence lower bounds trigger mandatory board review.
+   Applies inductive conformal prediction (TW-CRC) to calculate finite-sample coverage intervals at significance level $\alpha = 0.05$. Triggers **`ABSTAIN_FOR_HUMAN_REVIEW`** when empirical evidence is sparse or lower bounds fall below safe operational thresholds.
 
 5. **Strict Anti-Hallucination Refusal Guardrail:**
    If all departments retrieve zero precedent cases or report $0.0$ confidence, the aggregator **strictly refuses to fabricate a speculative business plan**. It explicitly alerts management that empirical evidence is absent.
@@ -135,24 +125,38 @@ Each department agent is an autonomous, domain-prompted specialist implementing 
 
 ---
 
-## Leakage-Safe Research Evaluation (`evaluation_v2`)
+## Empirical Reasoning & Confidence Engine
 
-Earlier iterations of corporate retrieval benchmarks suffered from well-known evaluation pitfalls: self-case retrieval, future outcome lookahead, and simulated metrics. 
+MARS decouples the **reasoning engine (the frozen LLM)** from the **calibrated scoring policy (the Persistent Parameter Registry)**.
 
-The `evaluation_v2/` package implements a **strictly defensible scientific benchmark protocol**:
-
-1. **Strict Chronological Invariants:**
-   - Precedents are restricted to strictly prior dates: $\text{decision\_date}_{\text{precedent}} < \text{decision\_date}_{\text{query}}$.
-   - Outcomes are masked unless verified prior to the query date: $\text{observation\_date} \le \text{decision\_date}_{\text{query}}$.
-   - Query cases are explicitly masked by `case_id` to prevent self-retrieval.
-2. **Fixed Split Manifest:**
-   - **Train Split:** 1,280 cases (2023 Q1 – 2024 Q4)
-   - **Validation Split:** 320 cases (2025 Q1 – 2025 Q2)
-   - **Test Split:** 480 cases (2025 Q3 – 2026 Q1)
-   - *Total:* 2,080 verified cases across 13 quarters.
-3. **Reproducibility Suite:**
-   - Automated research audit: `python -m evaluation_v2.research_audit`
-   - Unit validation tests: `pytest evaluation_v2/test_protocol.py evaluation_v2/test_tool_robustness.py`
+```
+┌────────────────────────────────────────────────────────┐
+│                   PERSISTENT STORAGE                   │
+│         (calibrated_weights_registry.json)             │
+│                                                        │
+│  • Global Default:  [0.45, 0.20, 0.35]                 │
+│  • Domain Profiles: {"legal": [0.42, 0.28, 0.30], ...} │
+│  • Action Profiles: {"expand": [0.40, 0.15, 0.45], ...}│
+└───────────────────────────┬────────────────────────────┘
+                            │ Dynamic Lookup
+                            ▼
+               ┌────────────────────────┐
+               │   Confidence Engine    │ ──▶ Conf = w^T · [Sim, Rec, Succ]
+               └────────────┬───────────┘
+                            │ Grounded Evidence
+                            ▼
+               ┌────────────────────────┐
+               │ Frozen LLM (Reasoning) │ ──▶ Strategic Advisory Synthesis
+               └────────────┬───────────┘
+                            │
+               [New Outcome Observed / Logged]
+                            │
+                            ▼
+               ┌────────────────────────┐
+               │   Continuous Learner   │ ──▶ Minimizes BCE Loss & Persists
+               │ (Simplex Optimization) │     Updated Weights to Registry!
+               └────────────────────────┘
+```
 
 ---
 
@@ -160,118 +164,162 @@ The `evaluation_v2/` package implements a **strictly defensible scientific bench
 
 ```
 MARS/
-├── README.md                            # Authoritative master project documentation
+├── README.md                            # Master project documentation
 ├── ArchitectureDiagram.png              # Visual high-level system diagram
+├── ARCHITECTURE_CONFIDENCE_AND_ROUTING.md # Detailed architecture & math spec
+├── TIER_1_IMPLEMENTATION_AND_BENCHMARKS.md # Benchmark report & empirical findings
+├── TIER_1_RESEARCH_PROPOSAL.md          # Theoretical foundations & literature review
+├── PEER_REVIEW_ASSESSMENT_AND_RESEARCH_AUDIT.md # Academic assessment & peer audit
+├── MARS_SYSTEM_DIAGRAMS_AND_SCHEMAS.md  # Eraser.io & Draw.io Diagram-as-Code
+│
 ├── dataset/                             # Verified 2023-2026 corporate decision corpus
 │   ├── decisions.csv                    # 2,080 historical decision records
 │   ├── outcomes.csv                     # 2,080 empirical observed outcomes
-│   ├── Decisions/                       # Per-quarter breakdown CSVs
-│   └── Outcome/                         # Per-quarter outcome CSVs
+│   ├── Decisions/                       # Stratified quarterly decision CSVs
+│   └── Outcome/                         # Stratified quarterly outcome CSVs
+│
+├── evaluation/                          # BEIR & G-Eval research benchmark suite
+│   ├── run_benchmark.py                 # Retrieval & generation benchmark runner
+│   ├── eval_retrieval.py                # Dense vs BM25 vs MMR retrieval eval
+│   ├── eval_generation.py               # Frontier LLM judge & ROUGE evaluation
+│   ├── benchmark_dataset.py             # Stratified dataset loader
+│   └── BENCHMARK_REPORT.md              # Published benchmark findings
+│
 ├── evaluation_v2/                       # Leakage-safe research evaluation suite
 │   ├── build_manifests.py               # Chronological manifest generator
 │   ├── dataset.py                       # Leakage-safe dataset loader & masking
 │   ├── retrieval.py                     # Temporal BM25, Dense & Hybrid benchmark
 │   ├── calibration.py                   # Brier, NLL, ECE, & Conformal risk metrics
 │   ├── routing.py                       # MoE router precision/recall evaluation
-│   ├── replay.py                        # Replay packet generator & scoring template
 │   ├── research_audit.py                # End-to-end verification audit runner
-│   ├── test_protocol.py                 # Protocol & temporal integrity unit tests
-│   ├── test_tool_robustness.py          # Tool failure degradation tests
-│   ├── EXPERIMENT_PLAN.md               # Scientific hypotheses & experiment matrix
-│   └── artifacts/                       # Verified JSON evaluation runs
-├── backend/                             # Core FastAPI application & reasoning engine
-│   ├── Dockerfile                       # Production container specification (CPU-torch)
-│   ├── docker-compose.yml               # Multi-container stack (Backend + Open WebUI)
-│   ├── pyproject.toml                   # Python dependencies and packaging
-│   ├── requirements.txt                 # Pinned dependencies
-│   ├── app/
-│   │   ├── main.py                      # FastAPI application entrypoint
-│   │   ├── state.py                     # LangGraph state schema definition
-│   │   ├── agents/
-│   │   │   ├── master_agent.py          # LangGraph graph builder & runner
-│   │   │   ├── router.py                # Intent classifier & dynamic gating node
-│   │   │   ├── common.py                # Shared agent logic & tool executor
-│   │   │   ├── finance_agent.py         # Finance department specialist
-│   │   │   ├── legal_agent.py           # Legal department specialist
-│   │   │   ├── rd_agent.py              # R&D department specialist
-│   │   │   ├── operations_agent.py      # Operations department specialist
-│   │   │   └── chat_agent.py            # Conversational thread fallback node
-│   │   ├── reasoning/
-│   │   │   ├── semantic_router.py       # Embedding-Space MoE vector router
-│   │   │   ├── confidence.py            # Multi-factor confidence & decay engine
-│   │   │   ├── weight_registry.py       # Thread-safe persistent parameter manager
-│   │   │   ├── calibrated_weights_registry.json # Calibrated domain weights
-│   │   │   ├── outcome_analysis.py      # Negation-aware outcome classifier
-│   │   │   ├── conformal_predictor.py   # Conformal risk controller & policies
-│   │   │   ├── calibration_metrics.py   # ECE, MCE, NLL, Brier score metrics
-│   │   │   ├── aggregator.py            # Conflict resolution & executive synthesis
-│   │   │   └── explainability.py        # Lineage audit trail generator
-│   │   ├── api/
-│   │   │   ├── routes.py                # Native API endpoints (/api/query)
-│   │   │   └── openai_compat.py         # OpenAI-compatible API for Open WebUI (/v1/*)
-│   │   ├── services/
-│   │   │   ├── supabase_client.py       # Supabase client & pgvector RPC bindings
-│   │   │   └── embedding.py             # Sentence-transformers embedding service
-│   │   ├── storage/
-│   │   │   ├── embedder.py              # Embedding utility functions
-│   │   │   └── sync_decisions_to_supabase.py # Ingestion & vector upsert pipeline
-│   │   └── tools/
-│   │       ├── tool_registry.py         # Agent-tool permission mappings
-│   │       ├── edgar_tool.py            # SEC EDGAR 10-K financial disclosures
-│   │       └── search_tool.py           # Live market & patent queries
-│   ├── sql/
-│   │   └── 001_setup.sql                # Supabase schema, pgvector index & RPC
-│   └── tests/
-│       ├── test_confidence_reasoning.py # Automated reasoning test suite
-│       └── comprehensive_evaluation.py  # 7-section diagnostic harness
+│   ├── test_protocol.py                 # Temporal boundary integrity unit tests
+│   └── test_tool_robustness.py          # Tool failure degradation tests
+│
+└── backend/                             # Core FastAPI application & reasoning engine
+    ├── Dockerfile                       # Production container specification (CPU-torch)
+    ├── docker-compose.yml               # Multi-container stack (Backend + Open WebUI)
+    ├── pyproject.toml                   # Python dependencies and packaging
+    ├── requirements.txt                 # Pinned dependencies
+    ├── main.py                          # FastAPI entrypoint & CLI demo
+    ├── app/
+    │   ├── state.py                     # LangGraph state schema definition
+    │   ├── agents/
+    │   │   ├── master_agent.py          # LangGraph graph builder & runner
+    │   │   ├── router.py                # Intent classifier & dynamic gating node
+    │   │   ├── common.py                # Shared agent logic & tool executor
+    │   │   ├── finance_agent.py         # Finance department specialist
+    │   │   ├── legal_agent.py           # Legal department specialist
+    │   │   ├── rd_agent.py              # R&D department specialist
+    │   │   ├── operations_agent.py      # Operations department specialist
+    │   │   └── chat_agent.py            # Conversational thread fallback node
+    │   ├── reasoning/
+    │   │   ├── semantic_router.py       # Embedding-Space MoE vector router
+    │   │   ├── confidence.py            # Multi-factor confidence & decay engine
+    │   │   ├── weight_registry.py       # Thread-safe persistent parameter manager
+    │   │   ├── calibrated_weights_registry.json # Calibrated domain weights
+    │   │   ├── outcome_analysis.py      # Negation-aware outcome classifier
+    │   │   ├── conformal_predictor.py   # Conformal risk controller & policies
+    │   │   ├── calibration_metrics.py   # ECE, MCE, NLL, Brier score metrics
+    │   │   ├── aggregator.py            # Conflict resolution & executive synthesis
+    │   │   └── explainability.py        # Lineage audit trail generator
+    │   ├── api/
+    │   │   ├── routes.py                # Native API endpoints (/api/query)
+    │   │   └── openai_compat.py         # OpenAI-compatible API for Open WebUI (/v1/*)
+    │   ├── services/
+    │   │   ├── supabase_client.py       # Supabase client & pgvector RPC bindings
+    │   │   └── case_retrieval_service.py # Case retrieval & MMR reranking
+    │   ├── storage/
+    │   │   ├── embedder.py              # Embedding utility functions
+    │   │   └── sync_decisions_to_supabase.py # Ingestion & vector upsert pipeline
+    │   └── tools/
+    │       ├── tool_registry.py         # Agent-tool permission mappings
+    │       └── tool_executor.py         # MCP tool call bridge
+    ├── sql/
+    │   ├── 001_setup.sql                # Supabase schema, pgvector index & RPC
+    │   └── 006_match_decisions_outcome_label.sql # Enhanced similarity search RPC
+    ├── evaluation/                      # Longitudinal & MultiCorp benchmark modules
+    │   ├── longitudinal_evaluation.py   # 2023-2024 train -> 2025-2026 test backtest
+    │   ├── multicorp_benchmark.py       # MultiCorp-QA 4-sector cross-domain eval
+    │   └── statistical_significance.py  # Paired Bootstrap & Fleiss' Kappa
+    └── tests/
+        ├── test_confidence_reasoning.py # Automated reasoning test suite (9 tests)
+        ├── run_tier1_benchmarks.py      # Master empirical research verification
+        ├── tier1_evaluation_results.json # Verified output data
+        └── validation_results.json      # Validation benchmarks
 ```
+
+---
+
+## Configuration
+
+All configuration is centralized in `backend/app/core/config.py` and loaded from `backend/.env`.
+
+```env
+# Required for Vector Database & Cases Storage
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_service_role_key
+
+# Model Providers (configure whichever you use)
+GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Optional Search Tools
+TAVILY_API_KEY=your_tavily_api_key       # Enables live market, legal, and supply-chain web search
+```
+
+### Supported Models
+MARS supports dynamic runtime model switching via LangChain `init_chat_model()`:
+- `ollama:qwen2.5:3b` *(default — runs locally at zero inference cost)*
+- `google_genai:gemini-3.8-flash`
+- `groq:qwen/qwen3.8-27b`
+- `groq:openai/gpt-oss-120b`
+- `groq:openai/gpt-oss-20b`
 
 ---
 
 ## Quick Start Guide
 
 ### Option 1: Docker Compose (Recommended)
-This launches both the MARS FastAPI backend and the Open WebUI frontend in isolated containers:
+Launches both the MARS FastAPI backend and Open WebUI in isolated containers:
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env with your GROQ_API_KEY, SUPABASE_URL, and SUPABASE_KEY
+cp .env.example .env   # Fill in API keys
 docker compose up --build
 ```
 
-Access the interfaces:
-* **Open WebUI Chat Interface:** `http://localhost:3000`
-* **MARS Backend API:** `http://localhost:8000`
-* **API Documentation (Swagger):** `http://localhost:8000/docs`
+Access points:
+| Service | URL | Purpose |
+|---|---|---|
+| **Open WebUI** | `http://localhost:3000` | Chat UI (`WEBUI_AUTH=false` pre-set) |
+| **MARS Backend** | `http://localhost:8000` | Native REST API (`/api/*`) + OpenAI-compatible API (`/v1/*`) |
+| **Swagger Docs** | `http://localhost:8000/docs` | Interactive OpenAPI documentation |
 
 ### Option 2: Native Local Development
 
 ```bash
-# From the repository root
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # Configure environment variables
 
-cp .env.example .env
-# Fill in API keys in .env
-
-# Run FastAPI with live reload
-uvicorn app.main:app --reload --port 8000
+# Run FastAPI backend with live reload
+uvicorn main:app --reload --port 8000
 ```
 
 ---
 
 ## Database & Embedding Sync
 
-MARS uses **Supabase with `pgvector`** for precedent retrieval.
+MARS utilizes Supabase as its source of truth and vector database via `pgvector`:
 
-1. **Database Initialization:**  
-   Execute [backend/sql/001_setup.sql](backend/sql/001_setup.sql) in the Supabase SQL Editor. This sets up:
-   * The `decisions` table with vector column `embedding vector(384)`.
-   * The `outcomes` table linked via `case_id`.
-   * The `match_decisions` similarity-search RPC function.
+1. **Database Setup:**  
+   In your Supabase SQL Editor, run:
+   - `backend/sql/001_setup.sql` — Enables `vector`, creates `decisions` and `outcomes` tables, triggers, and similarity search RPC.
+   - `backend/sql/006_match_decisions_outcome_label.sql` — Configures enhanced similarity search with outcome labels.
 
 2. **Ingest & Embed Historical Precedents:**  
    Run the sync pipeline to embed all 2,080 cases and upload them to Supabase:
@@ -281,28 +329,38 @@ MARS uses **Supabase with `pgvector`** for precedent retrieval.
 
 ---
 
-## Running Tests
+## Running Tests & Benchmarks
 
-### 1. Confidence & Reasoning Unit Tests
-Validates the multi-factor confidence engine, negation classification, weight registry, and dynamic router:
+### 1. Confidence & Reasoning Unit Tests (9 Tests)
+Validates multi-factor confidence, recency decay, outcome classification, dynamic skipping, and registry persistence:
 ```bash
-PYTHONPATH=backend pytest -v backend/tests/test_confidence_reasoning.py
+PYTHONPATH=backend python -m unittest backend/tests/test_confidence_reasoning.py
 ```
 
-### 2. Leakage-Safe Evaluation Protocol Tests
+### 2. Tier-1 Master Empirical Research Suite
+Runs longitudinal backtesting (2023–2024 train $\rightarrow$ 2025–2026 test, $N=2,080$), Conformal Risk bounds, MultiCorp-QA 4-sector evaluation, and Bootstrap significance testing:
+```bash
+PYTHONPATH=backend python backend/tests/run_tier1_benchmarks.py
+```
+
+### 3. Leakage-Safe Research Evaluation (`evaluation_v2`)
 Validates temporal boundaries, absence of lookahead bias, and tool failure degradation:
 ```bash
 pytest -v evaluation_v2/test_protocol.py evaluation_v2/test_tool_robustness.py
-```
-
-### 3. Full Research Audit
-Executes the comprehensive verification pipeline across manifest integrity, temporal retrieval, calibration, and router efficiency:
-```bash
 python -m evaluation_v2.research_audit
 ```
-Results will be output directly to `evaluation_v2/artifacts/research_audit_summary.json`.
+
+### 4. BEIR & G-Eval Retrieval & Generation Benchmarks
+```bash
+python -m evaluation.run_benchmark
+```
 
 ---
 
-## License & Attribution
-Developed for enterprise corporate advisory research. Built with LangGraph, pgvector, and FastAPI.
+## Documentation & Research Reports
+
+* [ARCHITECTURE_CONFIDENCE_AND_ROUTING.md](ARCHITECTURE_CONFIDENCE_AND_ROUTING.md) — Comprehensive technical architecture, mathematical formulations, and dynamic router design.
+* [TIER_1_IMPLEMENTATION_AND_BENCHMARKS.md](TIER_1_IMPLEMENTATION_AND_BENCHMARKS.md) — Full academic benchmark report across Conformal Risk, Longitudinal Backtesting, and MultiCorp-QA.
+* [TIER_1_RESEARCH_PROPOSAL.md](TIER_1_RESEARCH_PROPOSAL.md) — Theoretical foundations and literature grounding (Angelopoulos & Bates, Gibbs & Candès, Guo et al.).
+* [PEER_REVIEW_ASSESSMENT_AND_RESEARCH_AUDIT.md](PEER_REVIEW_ASSESSMENT_AND_RESEARCH_AUDIT.md) — Formal academic assessment report.
+* [MARS_SYSTEM_DIAGRAMS_AND_SCHEMAS.md](MARS_SYSTEM_DIAGRAMS_AND_SCHEMAS.md) — Formal UML Class, Sequence, and Deployment diagram specifications for Eraser.io and Draw.io.
