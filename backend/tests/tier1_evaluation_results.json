@@ -1,0 +1,448 @@
+{
+  "benchmark_timestamp_utc": "2026-10-04 17:14:41",
+  "total_execution_seconds": 5.83,
+  "pillar_1_conformal_risk_bounds": {
+    "high_confidence_policy": "PROCEED_AUTONOMOUS",
+    "high_confidence_interval": [
+      0.605,
+      1.0
+    ],
+    "low_confidence_policy": "ABSTAIN_FOR_HUMAN_REVIEW",
+    "low_confidence_interval": [
+      0.038,
+      0.662
+    ],
+    "zero_evidence_policy": "ABSTAIN_FOR_HUMAN_REVIEW",
+    "zero_evidence_suppressed": true
+  },
+  "pillar_2_multicorp_cross_domain_benchmark": {
+    "benchmark_name": "MultiCorp-QA Enterprise Cross-Domain Benchmark",
+    "total_cases": 12,
+    "sectors_evaluated": [
+      "Big Tech / Software",
+      "Healthcare / Biopharma",
+      "Clean Energy / Auto",
+      "Banking / Financial Services"
+    ],
+    "micro_precision": 0.9167,
+    "micro_recall": 0.44,
+    "micro_f1": 0.5946,
+    "overall_metrics": {
+      "micro_precision": 0.9167,
+      "micro_recall": 0.44,
+      "micro_f1": 0.5946,
+      "exact_match_rate": 0.0833
+    },
+    "summary_by_sector": {
+      "Big Tech / Software": {
+        "cases": 4,
+        "avg_precision": 1.0,
+        "avg_recall": 0.5,
+        "macro_f1": 0.667,
+        "exact_match_rate": 0.25
+      },
+      "Healthcare / Biopharma": {
+        "cases": 3,
+        "avg_precision": 0.667,
+        "avg_recall": 0.333,
+        "macro_f1": 0.444,
+        "exact_match_rate": 0.0
+      },
+      "Clean Energy / Auto": {
+        "cases": 3,
+        "avg_precision": 1.0,
+        "avg_recall": 0.429,
+        "macro_f1": 0.6,
+        "exact_match_rate": 0.0
+      },
+      "Banking / Financial Services": {
+        "cases": 2,
+        "avg_precision": 1.0,
+        "avg_recall": 0.5,
+        "macro_f1": 0.667,
+        "exact_match_rate": 0.0
+      }
+    },
+    "sector_breakdown": {
+      "Big Tech / Software": {
+        "cases": 4,
+        "avg_precision": 1.0,
+        "avg_recall": 0.5,
+        "macro_f1": 0.667,
+        "exact_match_rate": 0.25
+      },
+      "Healthcare / Biopharma": {
+        "cases": 3,
+        "avg_precision": 0.667,
+        "avg_recall": 0.333,
+        "macro_f1": 0.444,
+        "exact_match_rate": 0.0
+      },
+      "Clean Energy / Auto": {
+        "cases": 3,
+        "avg_precision": 1.0,
+        "avg_recall": 0.429,
+        "macro_f1": 0.6,
+        "exact_match_rate": 0.0
+      },
+      "Banking / Financial Services": {
+        "cases": 2,
+        "avg_precision": 1.0,
+        "avg_recall": 0.5,
+        "macro_f1": 0.667,
+        "exact_match_rate": 0.0
+      }
+    },
+    "case_details": [
+      {
+        "case_id": "MSFT-2024Q1-001",
+        "company": "Microsoft Corp.",
+        "sector": "Big Tech / Software",
+        "query": "CapEx commitment for multi-gigawatt Azure OpenAI GPU datacenter expansion amidst liquid cooling power grid constraints",
+        "expected_depts": [
+          "rd",
+          "operations",
+          "finance"
+        ],
+        "routed_depts": [
+          "rd"
+        ],
+        "department_scores": {
+          "finance": 0.0433,
+          "legal": -0.021,
+          "rd": 0.2652,
+          "operations": 0.1665
+        },
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "exact_match": 0
+      },
+      {
+        "case_id": "AAPL-2024Q2-002",
+        "company": "Apple Inc.",
+        "sector": "Big Tech / Software",
+        "query": "EU Digital Markets Act compliance audit on alternative iOS app marketplaces, third-party payment gateways, and core technology fee penalties",
+        "expected_depts": [
+          "legal"
+        ],
+        "routed_depts": [
+          "legal"
+        ],
+        "department_scores": {
+          "finance": 0.1739,
+          "legal": 0.5028,
+          "rd": 0.0419,
+          "operations": 0.1357
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "exact_match": 1
+      },
+      {
+        "case_id": "GOOG-2024Q3-003",
+        "company": "Alphabet Inc.",
+        "sector": "Big Tech / Software",
+        "query": "DOJ antitrust remedy response concerning default search engine distribution contracts and revenue share agreements with Apple and Mozilla",
+        "expected_depts": [
+          "legal",
+          "finance"
+        ],
+        "routed_depts": [
+          "legal"
+        ],
+        "department_scores": {
+          "finance": 0.1941,
+          "legal": 0.4018,
+          "rd": 0.0622,
+          "operations": 0.2004
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "NVDA-2024Q4-004",
+        "company": "NVIDIA Corp.",
+        "sector": "Big Tech / Software",
+        "query": "Blackwell B200 packaging thermal yield defect remediation and CoWoS-L substrate redesign allocation at TSMC Fab 18B",
+        "expected_depts": [
+          "rd",
+          "operations"
+        ],
+        "routed_depts": [
+          "operations"
+        ],
+        "department_scores": {
+          "finance": 0.0577,
+          "legal": -0.0735,
+          "rd": 0.1346,
+          "operations": 0.3276
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "PFE-2023Q4-005",
+        "company": "Pfizer Inc.",
+        "sector": "Healthcare / Biopharma",
+        "query": "Post-acquisition integration of Seagen antibody-drug conjugate (ADC) clinical pipeline with 10-K R&D impairment charge amortization",
+        "expected_depts": [
+          "rd",
+          "finance"
+        ],
+        "routed_depts": [
+          "legal"
+        ],
+        "department_scores": {
+          "finance": 0.0843,
+          "legal": 0.1523,
+          "rd": 0.0281,
+          "operations": 0.1387
+        },
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "exact_match": 0
+      },
+      {
+        "case_id": "MRNA-2024Q1-006",
+        "company": "Moderna Inc.",
+        "sector": "Healthcare / Biopharma",
+        "query": "FDA Phase 3 mRNA-1083 RSV/Flu combination vaccine accelerated approval filing and patent infringement litigation with Arbutus Biopharma",
+        "expected_depts": [
+          "rd",
+          "legal"
+        ],
+        "routed_depts": [
+          "legal"
+        ],
+        "department_scores": {
+          "finance": 0.0307,
+          "legal": 0.2452,
+          "rd": 0.0273,
+          "operations": 0.0925
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "LLY-2024Q2-007",
+        "company": "Eli Lilly & Co.",
+        "sector": "Healthcare / Biopharma",
+        "query": "Mounjaro/Zepbound GLP-1 autoinjector contract manufacturing supply chain expansion in Concord North Carolina under cGMP inspection scrutiny",
+        "expected_depts": [
+          "operations",
+          "legal"
+        ],
+        "routed_depts": [
+          "operations"
+        ],
+        "department_scores": {
+          "finance": 0.1599,
+          "legal": 0.1011,
+          "rd": 0.0586,
+          "operations": 0.3685
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "TSLA-2024Q1-008",
+        "company": "Tesla Inc.",
+        "sector": "Clean Energy / Auto",
+        "query": "Full Self-Driving (Supervised) v12 end-to-end neural net regulatory submission to NHTSA following fatal crash investigation recall mandate",
+        "expected_depts": [
+          "rd",
+          "legal"
+        ],
+        "routed_depts": [
+          "rd"
+        ],
+        "department_scores": {
+          "finance": 0.0904,
+          "legal": 0.1027,
+          "rd": 0.1287,
+          "operations": 0.0769
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "TM-2024Q2-009",
+        "company": "Toyota Motor Corp.",
+        "sector": "Clean Energy / Auto",
+        "query": "Ministry of Land Infrastructure Transport and Tourism (MLIT) safety certification testing irregularities and production suspension on Yaris Cross",
+        "expected_depts": [
+          "operations",
+          "legal"
+        ],
+        "routed_depts": [
+          "operations"
+        ],
+        "department_scores": {
+          "finance": 0.0621,
+          "legal": 0.1525,
+          "rd": -0.0109,
+          "operations": 0.238
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "RIVN-2024Q3-010",
+        "company": "Rivian Automotive",
+        "sector": "Clean Energy / Auto",
+        "query": "Volkswagen Group $5.8B joint venture software architecture licensing agreement and Georgia manufacturing plant capital expenditure pause",
+        "expected_depts": [
+          "rd",
+          "operations",
+          "finance"
+        ],
+        "routed_depts": [
+          "finance"
+        ],
+        "department_scores": {
+          "finance": 0.2963,
+          "legal": 0.1627,
+          "rd": 0.2117,
+          "operations": 0.2378
+        },
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "exact_match": 0
+      },
+      {
+        "case_id": "JPM-2024Q1-011",
+        "company": "JPMorgan Chase",
+        "sector": "Banking / Financial Services",
+        "query": "Basel III Endgame capital requirement compliance and commercial real estate portfolio stress-test reserves adjustment",
+        "expected_depts": [
+          "legal",
+          "finance"
+        ],
+        "routed_depts": [
+          "finance"
+        ],
+        "department_scores": {
+          "finance": 0.3494,
+          "legal": 0.1862,
+          "rd": -0.0248,
+          "operations": 0.0955
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      },
+      {
+        "case_id": "GS-2024Q2-012",
+        "company": "Goldman Sachs",
+        "sector": "Banking / Financial Services",
+        "query": "Orderly transition and exit from Apple Card consumer credit partnership and GreenSky consumer loan platform divestiture accounting",
+        "expected_depts": [
+          "operations",
+          "finance"
+        ],
+        "routed_depts": [
+          "finance"
+        ],
+        "department_scores": {
+          "finance": 0.2594,
+          "legal": 0.1268,
+          "rd": -0.0392,
+          "operations": 0.1218
+        },
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "exact_match": 0
+      }
+    ]
+  },
+  "pillar_3_longitudinal_out_of_sample_evaluation": {
+    "dataset_summary": {
+      "total_cases": 2080,
+      "train_cases_2023_2024": 1280,
+      "test_cases_2025_2026": 800,
+      "test_ground_truth_success_rate": 0.71
+    },
+    "training_optimization": {
+      "initial_loss_bce": 0.332379,
+      "final_loss_bce": 0.082696,
+      "loss_reduction_pct": 75.12,
+      "calibrated_weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    "conformal_calibration": {
+      "target_coverage": 0.95,
+      "calibrated_quantile_cutoff_q_hat": 0.1681,
+      "out_of_sample_empirical_coverage": 0.9363,
+      "abstention_count": 232,
+      "caution_flags_count": 0
+    },
+    "out_of_sample_benchmarks": {
+      "baseline_1_uniform": {
+        "ece": 0.249592,
+        "mce": 0.544379,
+        "brier_score": 0.096747,
+        "nll": 0.324823
+      },
+      "baseline_2_similarity_only": {
+        "ece": 0.071348,
+        "mce": 0.16815,
+        "brier_score": 0.213941,
+        "nll": 0.624714
+      },
+      "mars_calibrated": {
+        "ece": 0.07488,
+        "mce": 0.160899,
+        "brier_score": 0.008709,
+        "nll": 0.079716,
+        "ece_reduction_vs_uniform_pct": 70.0,
+        "brier_improvement_vs_sim_only_pct": 95.93
+      }
+    }
+  },
+  "pillar_4_statistical_significance_and_reliability": {
+    "bootstrap_hypothesis_test": {
+      "observed_mean_baseline": 2.43,
+      "observed_mean_system": 3.16,
+      "observed_difference": 0.73,
+      "bootstrap_iterations": 2000,
+      "empirical_p_value": 0.0,
+      "confidence_interval_95": [
+        0.6675,
+        0.7925
+      ],
+      "statistically_significant": true,
+      "significance_level": 0.01,
+      "summary": "Statistically significant improvement (p = 0.0000 < 0.01, 95% CI: [+0.6675, +0.7925])"
+    },
+    "expert_panel_fleiss_kappa": {
+      "kappa": 0.5088,
+      "observed_agreement_P_bar": 0.6867,
+      "expected_agreement_P_e_bar": 0.3621,
+      "raters_per_subject": 5,
+      "total_subjects": 15,
+      "total_categories": 3,
+      "interpretation": "Moderate agreement"
+    }
+  }
+}

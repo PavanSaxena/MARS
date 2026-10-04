@@ -1,0 +1,1338 @@
+{
+  "protocol": "evaluation_v2 replay outputs",
+  "mode": "deterministic",
+  "split": "validation",
+  "cases": 10,
+  "systems": [
+    "llm_only",
+    "naive_bm25_rag",
+    "hybrid_rag_optional_dense",
+    "static_multi_agent_context",
+    "dynamic_mars_context"
+  ],
+  "leakage_violations": [],
+  "trace_summary": {
+    "llm_only": {
+      "cases": 10,
+      "mean_llm_calls": 1.0,
+      "mean_prompt_tokens_est": 262.2,
+      "mean_completion_tokens_est": 28.0,
+      "mean_retrieval_calls": 0.0,
+      "mean_retrieved_cases": 0.0,
+      "mean_tool_calls": 0.0,
+      "mean_active_agents": 0.0,
+      "mean_skipped_agents": 4.0,
+      "latency_p50_ms": 0.0007,
+      "latency_p95_ms": 0.0042,
+      "latency_p99_ms": 0.0042
+    },
+    "naive_bm25_rag": {
+      "cases": 10,
+      "mean_llm_calls": 1.0,
+      "mean_prompt_tokens_est": 667.3,
+      "mean_completion_tokens_est": 57.0,
+      "mean_retrieval_calls": 1.0,
+      "mean_retrieved_cases": 5.0,
+      "mean_tool_calls": 0.0,
+      "mean_active_agents": 1.0,
+      "mean_skipped_agents": 3.0,
+      "latency_p50_ms": 0.0021,
+      "latency_p95_ms": 0.011,
+      "latency_p99_ms": 0.011
+    },
+    "hybrid_rag_optional_dense": {
+      "cases": 10,
+      "mean_llm_calls": 1.0,
+      "mean_prompt_tokens_est": 665.9,
+      "mean_completion_tokens_est": 57.0,
+      "mean_retrieval_calls": 1.0,
+      "mean_retrieved_cases": 5.0,
+      "mean_tool_calls": 0.0,
+      "mean_active_agents": 1.0,
+      "mean_skipped_agents": 3.0,
+      "latency_p50_ms": 0.0022,
+      "latency_p95_ms": 0.0044,
+      "latency_p99_ms": 0.0044
+    },
+    "static_multi_agent_context": {
+      "cases": 10,
+      "mean_llm_calls": 1.0,
+      "mean_prompt_tokens_est": 952.3,
+      "mean_completion_tokens_est": 69.0,
+      "mean_retrieval_calls": 1.0,
+      "mean_retrieved_cases": 20.0,
+      "mean_tool_calls": 0.0,
+      "mean_active_agents": 4.0,
+      "mean_skipped_agents": 0.0,
+      "latency_p50_ms": 0.0061,
+      "latency_p95_ms": 0.0099,
+      "latency_p99_ms": 0.0099
+    },
+    "dynamic_mars_context": {
+      "cases": 10,
+      "mean_llm_calls": 1.0,
+      "mean_prompt_tokens_est": 767.1,
+      "mean_completion_tokens_est": 64.6,
+      "mean_retrieval_calls": 1.0,
+      "mean_retrieved_cases": 14.5,
+      "mean_tool_calls": 0.0,
+      "mean_active_agents": 2.9,
+      "mean_skipped_agents": 1.1,
+      "latency_p50_ms": 0.0052,
+      "latency_p95_ms": 0.0065,
+      "latency_p99_ms": 0.0065
+    }
+  },
+  "outputs": [
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0001",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 242,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0042,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0042,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0001",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 614,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.011,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.011,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0001",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 613,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0044,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0044,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0001",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 932,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0099,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0099,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0001",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 765,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0065,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0065,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0002",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 242,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0011,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0011,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0002",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 658,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0026,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0026,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0002",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 657,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0023,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0023,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0002",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 932,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0067,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0067,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases; 10 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0002",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 595,
+        "estimated_completion_tokens": 61,
+        "retrieval_calls": 1,
+        "retrieved_cases": 10,
+        "tool_calls": 0,
+        "active_agents": 2,
+        "skipped_agents": 2,
+        "latency_ms": 0.0048,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0048,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0003",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 269,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0006,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0006,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0003",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 713,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.002,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.002,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0003",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 712,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0018,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0018,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0003",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 959,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.006,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.006,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0003",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 791,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0052,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0052,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0004",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 263,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0007,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0007,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0004",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 620,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.002,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.002,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0004",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 618,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0023,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0023,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0004",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 954,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0061,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0061,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0004",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 786,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0052,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0052,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0005",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 266,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0007,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0007,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0005",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 652,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.002,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.002,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0005",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 650,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0017,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0017,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0005",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 956,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0059,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0059,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0005",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 786,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0045,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0045,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0006",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 265,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0007,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0007,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0006",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 709,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0023,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0023,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0006",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 708,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.002,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.002,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0006",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 955,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0059,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0059,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0006",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 787,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0055,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0055,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0007",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 278,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0008,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0008,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0007",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 693,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0021,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0021,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0007",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 692,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0022,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0022,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0007",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 968,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0064,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0064,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0007",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 801,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0052,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0052,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0008",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 266,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0006,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0006,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0008",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 682,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0026,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0026,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0008",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 681,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0025,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0025,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0008",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 956,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0065,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0065,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Operations: 5 cases, R&D: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0008",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 789,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0058,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0058,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0009",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 262,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0006,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0006,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0009",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 660,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0017,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0017,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0009",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 658,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.002,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.002,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0009",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 952,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0056,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0056,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0009",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 782,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0047,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0047,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "system": "llm_only",
+      "output": "Recommendation: insufficient precedent context was supplied; provide a cautious decision-time assessment only.\nRisks: unknown empirical precedent risk, cross-department uncertainty.\nConfidence: 0.30.",
+      "trace": {
+        "system": "llm_only",
+        "case_id": "AAPL-2025Q1-0010",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 269,
+        "estimated_completion_tokens": 28,
+        "retrieval_calls": 0,
+        "retrieved_cases": 0,
+        "tool_calls": 0,
+        "active_agents": 0,
+        "skipped_agents": 4,
+        "latency_ms": 0.0005,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0005,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "system": "naive_bm25_rag",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "naive_bm25_rag",
+        "case_id": "AAPL-2025Q1-0010",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 672,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0028,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0028,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "system": "hybrid_rag_optional_dense",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: 5 retrieved precedents; 5 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.70.",
+      "trace": {
+        "system": "hybrid_rag_optional_dense",
+        "case_id": "AAPL-2025Q1-0010",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 670,
+        "estimated_completion_tokens": 57,
+        "retrieval_calls": 1,
+        "retrieved_cases": 5,
+        "tool_calls": 0,
+        "active_agents": 1,
+        "skipped_agents": 3,
+        "latency_ms": 0.0028,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0028,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "system": "static_multi_agent_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases, R&D: 5 cases; 20 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "static_multi_agent_context",
+        "case_id": "AAPL-2025Q1-0010",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 959,
+        "estimated_completion_tokens": 69,
+        "retrieval_calls": 1,
+        "retrieved_cases": 20,
+        "tool_calls": 0,
+        "active_agents": 4,
+        "skipped_agents": 0,
+        "latency_ms": 0.0062,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0062,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "system": "dynamic_mars_context",
+      "output": "Recommendation: use the visible historical precedents conservatively before acting on Operations decision.\nEvidence: Finance: 5 cases, Legal: 5 cases, Operations: 5 cases; 15 retrieved precedents have outcomes visible at this decision date.\nRisks: verify whether prior precedent conditions match the current decision; avoid relying on future-only outcomes.\nConfidence: 0.75.",
+      "trace": {
+        "system": "dynamic_mars_context",
+        "case_id": "AAPL-2025Q1-0010",
+        "llm_calls": 1,
+        "estimated_prompt_tokens": 789,
+        "estimated_completion_tokens": 65,
+        "retrieval_calls": 1,
+        "retrieved_cases": 15,
+        "tool_calls": 0,
+        "active_agents": 3,
+        "skipped_agents": 1,
+        "latency_ms": 0.0055,
+        "events": [
+          {
+            "name": "generate_output",
+            "duration_ms": 0.0055,
+            "metadata": {}
+          }
+        ]
+      }
+    }
+  ]
+}

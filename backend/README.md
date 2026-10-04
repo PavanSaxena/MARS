@@ -74,8 +74,18 @@ Department tools are served over a real **Model Context Protocol** server (`app/
 | **Legal** | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decisions`/`outcomes` aggregate |
 | **Operations** | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decisions`/`outcomes` aggregate / Live Tavily web search |
 
-- **Internal tools** perform direct relational queries on `decisions` and `outcomes` for departmental action-type distributions and historical success rates.
-- **External search tools** invoke Tavily web search when `TAVILY_API_KEY` is present, or return a graceful fallback status if unconfigured.
+- **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) perform direct relational queries on `decisions` and `outcomes` for departmental action-type distributions and historical success rates.
+- **External search tools** (`MarketAnalysisTool`, `LegalDatabaseTool`, `SupplyChainAnalyzerTool`) invoke live Tavily web search when `TAVILY_API_KEY` is present, or return a graceful fallback status if unconfigured.
+
+The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`, where the bound tools now come from `app/tools/tool_registry.py:get_tool_objects_for_agent`, which in turn calls `app/mcp/client.py:get_langchain_tools_sync` and filters to that agent's allowlist. If the LLM calls one, `app/tools/tool_executor.py:execute_tool_call` re-checks the same allowlist, then forwards the call to `app/mcp/client.py:call_tool_sync` — a real MCP `CallToolRequest` round trip to the server subprocess — and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
+
+For manual inspection, the MCP server can be run standalone: `python -m app.mcp.server` (stdio transport — pair it with any MCP inspector/client).
+
+> **Multi-Factor Confidence Scoring:** `case_based_confidence` computes an objective, calibrated score in `[0.0, 1.0]` combining vector similarity ($45\%$), empirical precedent success rate ($35\%$), and temporal recency decay ($20\%$). The Aggregator uses this calibrated score to weight and rank department evidence. See `app/reasoning/confidence.py`.
+
+The Aggregator ranks departments by their calibrated case-based confidence (highest first), uses a fixed priority order (Legal > Finance > Operations > R&D) only as a tiebreaker, and appends a per-department explainability trail to the final output.
+
+**There is no separate vector database.** Decision data and its embeddings both live in Supabase — decisions are stored in the `decisions` table (Postgres), and a `vector` column on that same table (via the `pgvector` extension) is queried directly for similarity search. Outcomes live in a separate `outcomes` table (one row per `decisions.case_id`), joined in server-side by the `match_decisions` RPC.
 
 ---
 

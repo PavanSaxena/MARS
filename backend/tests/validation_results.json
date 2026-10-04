@@ -1,0 +1,169 @@
+{
+  "section_1_confidence_engine": {
+    "zero_evidence_empty_list": true,
+    "zero_similarity_zero_conf": true,
+    "sim_independent_scaling": true,
+    "rec_independent_scaling": true,
+    "succ_independent_scaling": true,
+    "bounded_in_0_1": true,
+    "weights_auto_normalized": true,
+    "quarter_decay_monotonicity": true,
+    "outcome_success_is_1": true,
+    "outcome_failure_is_0": true,
+    "outcome_mixed_is_half": true,
+    "outcome_unknown_is_prior": true
+  },
+  "section_2_outcome_classifier": {
+    "total_phrases_tested": 17,
+    "mismatches_count": 0,
+    "mismatches": [],
+    "pass": true
+  },
+  "section_3_weight_optimizer": {
+    "bce_loss_decreased": true,
+    "baseline_loss": 2.0123,
+    "optimized_loss": 0.5238,
+    "optimized_weights": [
+      0.1,
+      0.1,
+      0.8
+    ],
+    "weights_sum_to_1": true,
+    "persisted_across_restarts": true,
+    "malformed_file_fallback": true
+  },
+  "section_4_semantic_router": {
+    "finance_activated_for_finance": true,
+    "legal_activated_for_legal": true,
+    "rd_activated_for_rd": true,
+    "ops_activated_for_ops": true,
+    "multi_domain_tax_legal": false,
+    "broad_strategy_all_4": false,
+    "evaluation_table": {
+      "finance_treasury": {
+        "query": "Optimize commercial paper yield on liquid cash reserves during interest rate hikes",
+        "active_departments": [
+          "finance"
+        ],
+        "scores": {
+          "finance": 0.3454,
+          "legal": -0.0105,
+          "rd": 0.0889,
+          "operations": 0.0209
+        }
+      },
+      "legal_antitrust": {
+        "query": "Compliance audit for EU Digital Markets Act antitrust regulations and app store fee mandates",
+        "active_departments": [
+          "legal"
+        ],
+        "scores": {
+          "finance": 0.1775,
+          "legal": 0.5573,
+          "rd": -0.0182,
+          "operations": 0.1145
+        }
+      },
+      "rd_ai_quantization": {
+        "query": "INT8 and FP16 Neural Engine quantization for CoreML on-device machine learning models",
+        "active_departments": [
+          "rd"
+        ],
+        "scores": {
+          "finance": 0.0615,
+          "legal": 0.0608,
+          "rd": 0.4842,
+          "operations": 0.0638
+        }
+      },
+      "operations_factory": {
+        "query": "Supply chain assembly line bottlenecks and Foxconn factory recovery protocols",
+        "active_departments": [
+          "operations"
+        ],
+        "scores": {
+          "finance": 0.1259,
+          "legal": -0.0078,
+          "rd": 0.167,
+          "operations": 0.5261
+        }
+      },
+      "tax_and_antitrust": {
+        "query": "Tax liabilities and legal compliance regarding foreign subsidiary profit repatriation in Europe",
+        "active_departments": [
+          "legal"
+        ],
+        "scores": {
+          "finance": 0.2027,
+          "legal": 0.2525,
+          "rd": -0.1139,
+          "operations": 0.1649
+        }
+      },
+      "silicon_packaging_cost": {
+        "query": "TSMC 3nm wafer procurement costs and foundry manufacturing allocation",
+        "active_departments": [
+          "operations"
+        ],
+        "scores": {
+          "finance": 0.1521,
+          "legal": 0.0897,
+          "rd": 0.1635,
+          "operations": 0.5235
+        }
+      },
+      "broad_strategy": {
+        "query": "Comprehensive 2026 enterprise strategy, CapEx allocation, engineering roadmap, and supply chain expansion",
+        "active_departments": [
+          "operations",
+          "finance"
+        ],
+        "scores": {
+          "finance": 0.4006,
+          "legal": 0.1324,
+          "rd": 0.1841,
+          "operations": 0.4235
+        }
+      },
+      "unrelated_cooking": {
+        "query": "How to make a good chocolate cake with strawberries",
+        "active_departments": [
+          "legal"
+        ],
+        "scores": {
+          "finance": 0.0105,
+          "legal": 0.0284,
+          "rd": 0.0212,
+          "operations": -0.0463
+        }
+      }
+    }
+  },
+  "section_5_agent_skipping": {
+    "rd_db_calls": 0,
+    "rd_llm_calls": 0,
+    "ops_db_calls": 0,
+    "ops_llm_calls": 0,
+    "finance_db_calls": 1,
+    "finance_llm_calls": 1,
+    "rd_output_is_none": true,
+    "ops_output_is_none": true,
+    "finance_output_present": true,
+    "pass": true
+  },
+  "section_6_end_to_end_distinction": {
+    "skipped_has_explicit_scoped_out_label": true,
+    "no_evidence_has_zero_cases_and_confidence": true,
+    "low_conf_distinguishes_low_similarity_and_failure": true,
+    "all_three_states_are_distinct": true
+  },
+  "section_7_performance_benchmark": {
+    "iterations_measured": 50,
+    "router_median_latency_ms": 9.86,
+    "router_p95_latency_ms": 10.77,
+    "router_p99_latency_ms": 244.6,
+    "sparse_vs_all_agent_llm_call_reduction": "50.0% (for 2-dept query) to 75.0% (for 1-dept query)"
+  },
+  "bugs_found": [],
+  "suspicious_behavior": []
+}

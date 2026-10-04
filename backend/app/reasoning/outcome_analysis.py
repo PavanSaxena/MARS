@@ -12,12 +12,25 @@ _SUCCESS_KEYWORDS = (
     "successful",
     "achieved",
     "exceeded",
+    "growth",
+    "grew",
+    "expanded",
+    "expansion",
     "on track",
     "on-track",
     "profitable",
     "effective",
     "favorable",
     "favourable",
+    "approved",
+    "complied",
+    "compliance",
+    "mitigated",
+    "resolved",
+    "cleared",
+    "clearance",
+    "completed",
+    "positive",
 )
 _FAILURE_KEYWORDS = (
     "fail",
@@ -26,14 +39,38 @@ _FAILURE_KEYWORDS = (
     "unsuccessful",
     "missed",
     "delayed",
+    "delay",
     "over budget",
     "loss",
+    "losses",
     "abandoned",
     "cancelled",
     "canceled",
     "ineffective",
     "unfavorable",
     "unfavourable",
+    "penalty",
+    "penalties",
+    "violation",
+    "breach",
+    "rejection",
+    "declined",
+)
+
+
+_NEGATED_FAILURE_PATTERNS = (
+    "zero penalties",
+    "no penalties",
+    "zero fines",
+    "no fines",
+    "zero loss",
+    "no loss",
+    "no violation",
+    "zero violation",
+    "without violation",
+    "without penalty",
+    "without fine",
+    "without delay",
 )
 
 
@@ -41,8 +78,20 @@ def _classify(outcome_text: str) -> str:
     """Classify a free-text outcome summary as 'success', 'failure', or
     'unknown' (ambiguous / no recognizable keywords)."""
     text = (outcome_text or "").lower()
-    is_success = any(keyword in text for keyword in _SUCCESS_KEYWORDS)
+
+    # Pre-check negated failure phrases (e.g. "zero penalties" -> positive outcome)
+    has_negated_failure = any(p in text for p in _NEGATED_FAILURE_PATTERNS)
+
+    is_success = any(keyword in text for keyword in _SUCCESS_KEYWORDS) or has_negated_failure
+
+    # If failure keyword is only part of a negated phrase, don't flag as failure
     is_failure = any(keyword in text for keyword in _FAILURE_KEYWORDS)
+    if has_negated_failure:
+        # Strip negated phrases to re-evaluate remaining text for actual failure keywords
+        clean_text = text
+        for p in _NEGATED_FAILURE_PATTERNS:
+            clean_text = clean_text.replace(p, " ")
+        is_failure = any(keyword in clean_text for keyword in _FAILURE_KEYWORDS)
 
     if is_success and not is_failure:
         return "success"
@@ -53,26 +102,25 @@ def _classify(outcome_text: str) -> str:
 
 def analyze_outcomes(cases: List[dict]) -> float:
     """
-    Calculate the success rate from a list of retrieved cases.
+    Calculate the empirical success rate from a list of retrieved cases.
 
-    Each case's `outcome` (the Supabase `outcome_summary` text) is classified
-    via keyword matching (see `_classify`), since it's free text rather than
-    a fixed enum. The rate is computed over cases that could be classified
-    as success or failure — cases with ambiguous/unrecognized outcome text
-    are excluded from the denominator rather than silently counted as
-    failures.
-
-    Returns a float in [0, 1], or 0.0 if no cases are provided or none of
-    them could be classified.
+    Each case's outcome text is classified via keyword matching.
+    If classified outcomes exist, returns the success ratio in [0.0, 1.0].
+    If cases exist but none contain explicit polarity keywords, returns a
+    neutral baseline prior of 0.5.
+    Returns 0.0 only if the case list is empty.
     """
     if not cases:
         return 0.0
 
-    classifications = [_classify(case.get("outcome", "")) for case in cases]
+    classifications = [
+        _classify(case.get("outcome") or (case.get("metadata") or {}).get("outcome", ""))
+        for case in cases
+    ]
     known = [c for c in classifications if c != "unknown"]
 
     if not known:
-        return 0.0
+        return 0.5
 
     success = sum(1 for c in known if c == "success")
     return success / len(known)

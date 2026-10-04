@@ -186,7 +186,7 @@ def build_case_evidence(
 ) -> Dict[str, Any]:
     """
     Compute retrieval-side stats for the retrieved cases and attach a
-    case_based_confidence placeholder (see app.reasoning.confidence).
+    calibrated multi-factor case_based_confidence (see app.reasoning.confidence).
 
     Returns a dict meant to be merged into an agent's output, e.g.:
         parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
@@ -194,18 +194,18 @@ def build_case_evidence(
     similarity = compute_similarity(cases)
     success_rate = analyze_outcomes(cases)
 
-    # Placeholder — always None until the weighting formula is finalized.
-    case_based_confidence = calculate_confidence(
-        similarity=similarity,
-        past_success=success_rate,
-    )
-
     # Only surface cases the agent actually considered useful for its answer.
     # When the agent reports confidence 0.0 it means it looked at the retrieved
     # records and decided none were relevant enough to ground a recommendation.
     # Showing those cases in the frontend would be misleading — it would imply
     # they informed the decision when they explicitly did not.
     agent_used_cases = (reported_confidence is None or reported_confidence > 0.0) and bool(cases)
+
+    case_based_confidence = (
+        calculate_confidence(cases=cases)
+        if agent_used_cases
+        else 0.0
+    )
 
     num_cases = len(cases) if agent_used_cases else 0
 
@@ -227,11 +227,25 @@ def build_case_evidence(
         else []
     )
 
+    from app.reasoning.conformal_predictor import ConformalRiskController
+    _conformal_controller = ConformalRiskController(alpha=0.05)
+    conformal_bound = _conformal_controller.evaluate_decision_bound(
+        point_confidence=case_based_confidence,
+        cases_count=num_cases
+    )
+
     return {
         "num_cases_retrieved": num_cases,
         "avg_similarity": round(similarity, 4) if agent_used_cases else None,
         "historical_success_rate": round(success_rate, 4) if agent_used_cases else None,
-        "case_based_confidence": case_based_confidence,  # placeholder, TODO
+        "case_based_confidence": round(case_based_confidence, 4) if agent_used_cases else 0.0,
+        "conformal_bound": {
+            "confidence_interval": list(conformal_bound.confidence_interval),
+            "coverage_guarantee": conformal_bound.coverage_guarantee,
+            "risk_level": conformal_bound.risk_level,
+            "decision_policy": conformal_bound.decision_policy,
+            "policy_rationale": conformal_bound.policy_rationale,
+        },
         "tools_used": tools_used or [],
         "retrieved_cases": slim_cases,
         "explanation": generate_explanation(
@@ -585,3 +599,63 @@ def run_llm_with_tools(
     final_message = llm.invoke(messages)
     logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
+
+
+def execute_department_agent(
+    state: State,
+    department: str,
+    agent_title: str,
+    output_key: str,
+    role_points: List[str],
+    rules: List[str],
+) -> Dict[str, Any]:
+    """Generic runner for department specialist agents (finance, legal, operations, rd).
+
+    Handles active department routing gating, case retrieval, tool binding,
+    LLM invocation, structured output parsing, and evidence attachment.
+    """
+    dept_code = department.lower()
+    active_depts = state.get("active_departments")
+    if active_depts is not None and dept_code not in active_depts:
+        return {output_key: None}
+
+    logger.info("agent_started agent=%s", dept_code)
+    messages, query = extract_messages_and_query(state)
+    if not messages:
+        return empty_agent_result(output_key, messages)
+
+    logger.info("retrieval_started agent=%s", dept_code)
+    cases, case_text, warnings = retrieve_case_context(query=query, domain=dept_code, k=5)
+    logger.info("retrieval_finished agent=%s cases=%d warnings=%s", dept_code, len(cases), warnings)
+
+    agent_name = f"{dept_code}_agent"
+    from app.tools.tool_registry import get_tool_objects_for_agent
+    tools = get_tool_objects_for_agent(agent_name)
+
+    prompt = build_json_prompt(
+        agent_title=agent_title,
+        role_points=role_points,
+        rules=rules,
+        query=query,
+        case_text=case_text,
+        tool_names=[t.name for t in tools],
+    )
+
+    logger.info("llm_started agent=%s", dept_code)
+    content, tools_used, final_message = run_llm_with_tools(
+        get_llm(state.get("model")), prompt, tools, agent_name=agent_name
+    )
+    logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
+
+    parsed_output = parse_structured_output(content)
+    parsed_output.update(
+        build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence"))
+    )
+    if warnings:
+        parsed_output["warnings"] = warnings
+    logger.info("agent_finished agent=%s", dept_code)
+
+    return {
+        output_key: parsed_output,
+        "messages": messages + [final_message],
+    }

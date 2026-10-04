@@ -1,0 +1,34 @@
+{
+  "claims": [
+    {
+      "claim": "MARS improves decision support over LLM-only and RAG baselines.",
+      "current_status": "unproven",
+      "required_evidence": ["leakage-safe decision replay", "fair baselines", "blind or LLM+human evaluation", "paired statistics"]
+    },
+    {
+      "claim": "Hybrid retrieval and MMR improve evidence quality.",
+      "current_status": "unproven under valid protocol",
+      "required_evidence": ["leave-target-out temporal retrieval", "qrels or human relevance labels", "Recall/MRR/nDCG/diversity"]
+    },
+    {
+      "claim": "MARS confidence scores are calibrated.",
+      "current_status": "not currently supported by evaluation_v2 quick audit; must be weakened until full clean calibration improves over base rate",
+      "required_evidence": ["no target-outcome leakage", "held-out future test set", "Brier/NLL/ECE/MCE/reliability diagrams"]
+    },
+    {
+      "claim": "Temporal recency weighting improves future performance.",
+      "current_status": "unproven",
+      "required_evidence": ["lambda grid selected on validation only", "future test comparison against lambda=0"]
+    },
+    {
+      "claim": "Conformal risk control provides valid coverage.",
+      "current_status": "implemented but not yet useful enough for a strong autonomy claim; quick audit produced wide intervals and high abstention",
+      "required_evidence": ["separate calibration/test sets", "empirical coverage", "interval width", "selective risk and abstention curves"]
+    },
+    {
+      "claim": "Semantic routing reduces cost without quality loss.",
+      "current_status": "partly unit-tested",
+      "required_evidence": ["labeled routing benchmark", "efficiency traces", "non-inferiority decision quality test"]
+    }
+  ]
+}
