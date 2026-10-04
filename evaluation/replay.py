@@ -15,9 +15,9 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation.leakage_safe.metrics import mean_dicts
-from evaluation.leakage_safe.retrieval import BM25Index, HybridIndex
+from evaluation.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.metrics import mean_dicts
+from evaluation.retrieval import BM25Index, HybridIndex
 
 
 SYSTEMS = [

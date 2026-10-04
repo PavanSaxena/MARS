@@ -6,12 +6,12 @@ import argparse
 import json
 from pathlib import Path
 
-from evaluation.leakage_safe.build_manifests import main as _manifest_main
-from evaluation.leakage_safe.calibration import run_calibration_evaluation
-from evaluation.leakage_safe.dataset import REPO_ROOT, build_split_manifest, load_cases
-from evaluation.leakage_safe.retrieval import run_retrieval_evaluation
-from evaluation.leakage_safe.routing import run_routing_evaluation
-from evaluation.leakage_safe.run_replay_outputs import run_replay_outputs
+from evaluation.build_manifests import main as _manifest_main
+from evaluation.calibration import run_calibration_evaluation
+from evaluation.dataset import REPO_ROOT, build_split_manifest, load_cases
+from evaluation.retrieval import run_retrieval_evaluation
+from evaluation.routing import run_routing_evaluation
+from evaluation.run_replay_outputs import run_replay_outputs
 
 
 def run_research_audit(*, quick: bool = True) -> dict:

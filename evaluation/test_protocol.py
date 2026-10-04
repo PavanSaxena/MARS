@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from evaluation.leakage_safe.dataset import load_cases, split_cases, visible_corpus
-from evaluation.leakage_safe.replay import build_replay_cases
-from evaluation.leakage_safe.retrieval import run_retrieval_evaluation
+from evaluation.dataset import load_cases, split_cases, visible_corpus
+from evaluation.replay import build_replay_cases
+from evaluation.retrieval import run_retrieval_evaluation
 
 
 def test_visible_corpus_excludes_target_and_future_decisions():
