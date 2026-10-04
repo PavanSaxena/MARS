@@ -286,9 +286,9 @@ def calculate_deterministic_metrics(
             "rougeL_f1": 0.0,
         }
 
-    # 1. Citation Precision & Recall (detects hallucinated case numbers)
-    raw_citations = re.findall(r"AAPL-\d{4}Q[1-4]-\d{4}", response)
-    unique_citations = set(raw_citations)
+    # 1. Citation Precision & Recall (detects hallucinated case numbers, normalizes padding)
+    raw_matches = re.findall(r"(AAPL-\d{4}Q[1-4]-)(\d{1,4})", response)
+    unique_citations = {f"{prefix}{int(num_str):04d}" for prefix, num_str in raw_matches}
     valid_cited = [cid for cid in unique_citations if cid in valid_case_ids]
 
     citation_count = len(unique_citations)

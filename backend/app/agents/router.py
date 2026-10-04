@@ -56,7 +56,7 @@ def _render_history(messages) -> str:
         content = (content or "").strip()
         if content:
             lines.append(f"{role}: {content[:500]}")
-        return "\n".join(lines) if lines else "(no prior messages)"
+    return "\n".join(lines) if lines else "(no prior messages)"
 
 
 from app.reasoning.semantic_router import route_departments_semantically

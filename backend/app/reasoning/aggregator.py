@@ -31,12 +31,14 @@ def _fmt_department(name: str, output: dict) -> str:
         else "0.00"
     )
     retrieved_cases = output.get("retrieved_cases") or []
-    case_ids = [
-        str(case.get("case_id"))
-        for case in retrieved_cases
-        if isinstance(case, dict) and case.get("case_id")
-    ]
-    case_ids_text = ", ".join(case_ids) if case_ids else "None supplied"
+    case_summaries = []
+    for c in retrieved_cases:
+        if isinstance(c, dict) and c.get("case_id"):
+            cid = c.get("case_id")
+            title = c.get("decision_title", "")
+            outcome = c.get("outcome_label", "")
+            case_summaries.append(f"[{cid}] ({outcome}): {title}")
+    case_ids_text = "\n  - " + "\n  - ".join(case_summaries) if case_summaries else "None supplied"
 
     avg_sim = output.get("avg_similarity")
     sim_text = f"{avg_sim:.2f}" if isinstance(avg_sim, (int, float)) else "N/A"
@@ -137,28 +139,28 @@ CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
    - Under "Risk Foresight": Identify concrete downstream failure modes grounded in retrieved failure cases or explicit departmental findings. Pair each risk with a safeguard only when the evidence supports that safeguard; cite case IDs and label material evidence gaps.
    - Weight higher-confidence, evidence-backed departments more heavily.
    - Under "Recommended Strategic Plan & Action Roadmap": Give 2-3 ordered phases only when that sequence is supported by the assessments and cases. For each phase, state the concrete action and its supporting department/case IDs. Do not fabricate owners, budgets, dates, metrics, or dependencies; say when the dataset does not establish them.
-   - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.
+    - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.
+5. CITATION FORMATTING REQUIREMENT:
+    - Whenever citing precedent cases, ALWAYS use the EXACT bracketed case ID provided in the assessments, e.g., [AAPL-2023Q1-0001]. Never abbreviate, truncate, or hallucinate case numbers.
 
 Output Format (STRICT):
 Key Insights:
 <bullet points of the findings, or note the complete absence of historical evidence>
 
 Conflicts:
-<for each material proposal, the relevant peer concern, evidence/case IDs, classification, and evidence-backed resolution or unresolved point; or "None detected">
+<for each material proposal, the relevant peer concern, evidence/case IDs (e.g. [AAPL-2023Q1-0001]), classification, and evidence-backed resolution or unresolved point; or "None detected">
 
 Risk Foresight:
-<specific downstream risks and evidence-backed safeguards with case IDs, or state that no precedent-grounded risks/safeguards can be identified>
+<specific downstream risks and evidence-backed safeguards citing exact case IDs (e.g. [AAPL-2023Q2-0050]), or state that no precedent-grounded risks/safeguards can be identified>
 
 Recommended Strategic Plan & Action Roadmap:
-<2-3 evidence-supported phases with concrete actions and case IDs, or state that no evidence-based roadmap can be recommended>
+<2-3 evidence-supported phases with concrete actions and exact case IDs, or state that no evidence-based roadmap can be recommended>
 
 Final Decision:
-<the grounded recommendation, or explicit refusal if no historical evidence exists>
+<the grounded recommendation citing key precedents, or explicit refusal if no historical evidence exists>
 """
 
-    import time
     logger.info("[Aggregator] Invoking LLM to synthesize final decision")
-    time.sleep(2)
     response = get_llm(state.get("model")).invoke(prompt)
 
     # Normalise content — Gemini returns a list of dicts, not a plain string.

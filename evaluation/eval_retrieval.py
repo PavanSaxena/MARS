@@ -293,6 +293,7 @@ class MARSHybridRetriever:
         target_department: str,
         k: int = 5,
         as_of_date: Optional[str] = None,
+        cross_dept_impact: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # Dense scores
         dense_scores = np.dot(self.corpus_embeddings, query_emb)
@@ -300,6 +301,15 @@ class MARSHybridRetriever:
         bm25_raw = self.bm25.retrieve(query, k=len(self.corpus))
         bm25_score_map = {d["case_id"]: d["score"] for d in bm25_raw}
         max_bm25 = max(bm25_score_map.values()) if bm25_score_map else 1.0
+
+        target_cap = (target_department or "").capitalize()
+        impacted_set = set()
+        if cross_dept_impact:
+            impacted_set = {
+                d.strip().capitalize()
+                for d in re.split(r"[;,]", cross_dept_impact)
+                if d.strip() and d.strip().capitalize() != target_cap
+            }
 
         hybrid_candidates = []
         for idx, doc in enumerate(self.corpus):
@@ -309,7 +319,14 @@ class MARSHybridRetriever:
             cid = doc["case_id"]
             d_score = float(dense_scores[idx])
             b_score = bm25_score_map.get(cid, 0.0) / max(1e-6, max_bm25)
-            dept_match = 1.0 if doc.get("department") == target_department else 0.4
+            doc_dept = (doc.get("department") or "").capitalize()
+
+            if doc_dept == target_cap:
+                dept_match = 1.0
+            elif doc_dept in impacted_set:
+                dept_match = 0.85
+            else:
+                dept_match = 0.35
 
             raw_score = 0.55 * d_score + 0.25 * b_score + 0.20 * dept_match
             hybrid_candidates.append({
@@ -320,7 +337,7 @@ class MARSHybridRetriever:
             })
 
         hybrid_candidates.sort(key=lambda x: x["raw_score"], reverse=True)
-        pool = hybrid_candidates[: min(len(hybrid_candidates), k * 3)]
+        pool = hybrid_candidates[: min(len(hybrid_candidates), k * 4)]
 
         selected: List[Dict[str, Any]] = []
         selected_embs: List[np.ndarray] = []
@@ -332,6 +349,20 @@ class MARSHybridRetriever:
                 selected.append(best["doc"])
                 selected_embs.append(best["embedding"])
                 continue
+
+            # Prioritize top cross-department candidate if impact was specified and none selected yet
+            has_cross_dept = any((d.get("department") or "").capitalize() in impacted_set for d in selected)
+            if impacted_set and not has_cross_dept and len(selected) >= (k - 1):
+                cross_candidates = [
+                    (i, c) for i, c in enumerate(pool)
+                    if (c["doc"].get("department") or "").capitalize() in impacted_set
+                ]
+                if cross_candidates:
+                    best_cross_idx, _ = cross_candidates[0]
+                    chosen = pool.pop(best_cross_idx)
+                    selected.append(chosen["doc"])
+                    selected_embs.append(chosen["embedding"])
+                    continue
 
             best_idx = -1
             best_mmr = -1e9
@@ -410,9 +441,10 @@ def evaluate_retriever(
 
     for item in queries:
         target_id = item["case_id"]
-        target_dept = item.get("department")
+        target_dept = (item.get("department") or "").capitalize()
         impacted_str = item.get("cross_dept_impact", "")
-        impacted_depts = [d.strip() for d in impacted_str.split(",") if d.strip() and d.strip() != target_dept]
+        raw_depts = [d.strip().capitalize() for d in re.split(r"[;,]", impacted_str)] if impacted_str else []
+        impacted_depts = [d for d in raw_depts if d and d != target_dept]
 
         start_t = time.perf_counter()
         retrieved_docs = retriever_fn(item)
@@ -437,12 +469,12 @@ def evaluate_retriever(
 
         for d in retrieved_docs[:5]:
             total_retrieved += 1
-            if d.get("department") == target_dept:
+            if (d.get("department") or "").capitalize() == target_dept:
                 dept_correct_count += 1
 
         if impacted_depts:
             cross_dept_opportunities += 1
-            retrieved_depts = {d.get("department") for d in retrieved_docs[:5]}
+            retrieved_depts = {(d.get("department") or "").capitalize() for d in retrieved_docs[:5]}
             if any(imp in retrieved_depts for imp in impacted_depts):
                 cross_dept_hits += 1
 
@@ -625,6 +657,7 @@ def run_retrieval_benchmark(corpus: Optional[List[Dict[str, Any]]] = None) -> Di
             target_department=item["department"],
             k=5,
             as_of_date=item.get("decision_date"),
+            cross_dept_impact=item.get("cross_dept_impact"),
         )
 
     print("\n1/3 Evaluating Baseline R1: BM25 Lexical Retrieval...")

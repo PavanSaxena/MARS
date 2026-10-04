@@ -11,8 +11,8 @@
       "mrr": 0.9902,
       "ndcg_at_5": 1.1956,
       "dept_routing_precision": 0.909,
-      "cross_dept_recall": 0.0,
-      "mean_latency_ms": 11.44
+      "cross_dept_recall": 0.2091,
+      "mean_latency_ms": 10.71
     },
     {
       "system": "Baseline R2: Naive Dense Vector",
@@ -23,8 +23,8 @@
       "mrr": 0.994,
       "ndcg_at_5": 1.1852,
       "dept_routing_precision": 0.9277,
-      "cross_dept_recall": 0.001,
-      "mean_latency_ms": 0.21
+      "cross_dept_recall": 0.1615,
+      "mean_latency_ms": 0.18
     },
     {
       "system": "MARS: Hybrid + MMR + Cross-Dept",
@@ -33,11 +33,11 @@
       "recall_at_3": 1.0,
       "recall_at_5": 1.0,
       "mrr": 0.9995,
-      "ndcg_at_5": 1.2434,
-      "dept_routing_precision": 0.9966,
-      "cross_dept_recall": 0.0,
-      "mean_latency_ms": 24.94
+      "ndcg_at_5": 1.199,
+      "dept_routing_precision": 0.9205,
+      "cross_dept_recall": 0.3462,
+      "mean_latency_ms": 25.28
     }
   ],
-  "timestamp": "2026-10-04T18:31:22.147240+00:00"
+  "timestamp": "2026-10-04T18:53:45.097150+00:00"
 }

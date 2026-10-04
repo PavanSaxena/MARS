@@ -1,6 +1,6 @@
 # MARS Master Benchmark Report
 
-**Generated:** 2026-10-04 18:31 UTC  
+**Generated:** 2026-10-04 18:54 UTC  
 **System:** MARS — Multi-Agent Reasoning System for Corporate Decision Advisory  
 **Dataset:** 2,080 verified decisions (2023-2026) across 13 quarters with leakage-safe chronological evaluation  
 
@@ -13,9 +13,9 @@
 
 | System | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 | Dept Routing Prec | Cross-Dept Rec | Mean Latency (ms) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline R1: BM25 Lexical                  | 0.9841 | 0.9957 | 0.9990 | 0.9902 | 1.1956 | 0.9090 | 0.0000 | 11.44 |
-| Baseline R2: Naive Dense Vector            | 0.9889 | 0.9995 | 0.9995 | 0.9940 | 1.1852 | 0.9277 | 0.0010 | 0.21 |
-| MARS: Hybrid + MMR + Cross-Dept            | 0.9990 | 1.0000 | 1.0000 | 0.9995 | 1.2434 | 0.9966 | 0.0000 | 24.94 |
+| Baseline R1: BM25 Lexical                  | 0.9841 | 0.9957 | 0.9990 | 0.9902 | 1.1956 | 0.9090 | 0.2091 | 10.71 |
+| Baseline R2: Naive Dense Vector            | 0.9889 | 0.9995 | 0.9995 | 0.9940 | 1.1852 | 0.9277 | 0.1615 | 0.18 |
+| MARS: Hybrid + MMR + Cross-Dept            | 0.9990 | 1.0000 | 1.0000 | 0.9995 | 1.1990 | 0.9205 | 0.3462 | 25.28 |
 
 ---
 
