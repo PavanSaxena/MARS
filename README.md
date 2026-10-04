@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/framework-FastAPI-green.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Supabase pgvector](https://img.shields.io/badge/vector_store-Supabase%20pgvector-emerald.svg)](https://supabase.com/)
-[![Evaluation](https://img.shields.io/badge/eval-leakage--safe%20v2-purple.svg)](evaluation_v2/)
+[![Evaluation](https://img.shields.io/badge/eval-leakage--safe%2016%20tests-purple.svg)](evaluation/)
 
 **MARS** is an enterprise-grade multi-agent AI architecture engineered for strategic corporate decision advisory. Rather than relying on naive monolithic prompts or ungrounded generative outputs, MARS coordinates a specialized swarm of department agents (**Finance, Legal, Operations, R&D**) grounded in **2,080 verified historical precedents (2023–2026)**, empirical confidence calibration, and distribution-free conformal risk guarantees.
 
@@ -192,8 +192,8 @@ MARS/
 │   ├── calibration.py                   # Brier, NLL, ECE, & Conformal risk metrics
 │   ├── routing.py                       # MoE router precision/recall evaluation
 │   ├── research_audit.py                # End-to-end verification audit runner
-│   ├── test_protocol.py                 # Temporal boundary integrity unit tests
-│   └── test_tool_robustness.py          # Tool failure degradation tests
+     │   ├── test_protocol.py                 # Leakage-safe temporal boundary tests (4 tests)
+│   └── test_tool_robustness.py          # MCP tool executor robustness tests (3 tests)
 │
 └── backend/                             # Core FastAPI application & reasoning engine
     ├── Dockerfile                       # Production container specification (CPU-torch)
@@ -206,46 +206,65 @@ MARS/
     │   ├── agents/
     │   │   ├── master_agent.py          # LangGraph graph builder & runner
     │   │   ├── router.py                # Intent classifier & dynamic gating node
-    │   │   ├── common.py                # Shared agent logic & tool executor
+    │   │   ├── common.py                # Shared logic + execute_department_agent()
     │   │   ├── finance_agent.py         # Finance department specialist
     │   │   ├── legal_agent.py           # Legal department specialist
     │   │   ├── rd_agent.py              # R&D department specialist
     │   │   ├── operations_agent.py      # Operations department specialist
     │   │   └── chat_agent.py            # Conversational thread fallback node
     │   ├── reasoning/
+    │   │   ├── __init__.py              # Clean public API for reasoning stack
     │   │   ├── semantic_router.py       # Embedding-Space MoE vector router
-    │   │   ├── confidence.py            # Multi-factor confidence & decay engine
+    │   │   ├── confidence.py            # Multi-factor confidence, similarity & explanations
     │   │   ├── weight_registry.py       # Thread-safe persistent parameter manager
     │   │   ├── calibrated_weights_registry.json # Calibrated domain weights
     │   │   ├── outcome_analysis.py      # Negation-aware outcome classifier
     │   │   ├── conformal_predictor.py   # Conformal risk controller & policies
     │   │   ├── calibration_metrics.py   # ECE, MCE, NLL, Brier score metrics
     │   │   ├── aggregator.py            # Conflict resolution & executive synthesis
-    │   │   └── explainability.py        # Lineage audit trail generator
+    │   │   ├── similarity.py            # Re-export stub → confidence.compute_similarity
+    │   │   └── explainability.py        # Re-export stub → confidence.generate_explanation
     │   ├── api/
     │   │   ├── routes.py                # Native API endpoints (/api/query)
     │   │   └── openai_compat.py         # OpenAI-compatible API for Open WebUI (/v1/*)
     │   ├── services/
+    │   │   ├── __init__.py              # Package init
     │   │   ├── supabase_client.py       # Supabase client & pgvector RPC bindings
     │   │   └── case_retrieval_service.py # Case retrieval & MMR reranking
     │   ├── storage/
+    │   │   ├── __init__.py              # Package init (get_embedding, retrieve_cases)
     │   │   ├── embedder.py              # Embedding utility functions
     │   │   └── sync_decisions_to_supabase.py # Ingestion & vector upsert pipeline
     │   └── tools/
-    │       ├── tool_registry.py         # Agent-tool permission mappings
-    │       └── tool_executor.py         # MCP tool call bridge
+    │       ├── __init__.py              # Package init
+    │       ├── tool_executor.py         # AGENT_TOOL_REGISTRY allowlist + MCP bridge
+    │       └── tool_registry.py         # Re-export stub → tool_executor
     ├── sql/
     │   ├── 001_setup.sql                # Supabase schema, pgvector index & RPC
     │   └── 006_match_decisions_outcome_label.sql # Enhanced similarity search RPC
-    ├── evaluation/                      # Longitudinal & MultiCorp benchmark modules
-    │   ├── longitudinal_evaluation.py   # 2023-2024 train -> 2025-2026 test backtest
-    │   ├── multicorp_benchmark.py       # MultiCorp-QA 4-sector cross-domain eval
-    │   └── statistical_significance.py  # Paired Bootstrap & Fleiss' Kappa
     └── tests/
-        ├── test_confidence_reasoning.py # Automated reasoning test suite (9 tests)
+        ├── test_confidence_reasoning.py # Reasoning unit tests (9 tests)
+        ├── test_protocol.py             # Temporal split & replay integrity tests (4 tests)
+        ├── test_tool_robustness.py      # Tool executor robustness tests (3 tests)
         ├── run_tier1_benchmarks.py      # Master empirical research verification
-        ├── tier1_evaluation_results.json # Verified output data
+        ├── tier1_evaluation_results.json # Verified benchmark output
         └── validation_results.json      # Validation benchmarks
+
+evaluation/                              # Per-concern evaluation package (top-level)
+    ├── __init__.py
+    ├── dataset.py                       # Unified CaseRecord loader & temporal splits
+    ├── eval_retrieval.py                # BM25 / Dense / Hybrid retrieval benchmarks
+    ├── eval_routing.py                  # Agent routing + MultiCorp-QA 4-sector eval
+    ├── eval_calibration.py              # Confidence calibration (ECE, Brier, NLL)
+    ├── eval_longitudinal.py             # 2023–2024 train → 2025–2026 out-of-sample backtest
+    ├── eval_generation.py               # G-Eval generation quality metrics
+    ├── eval_replay.py                   # Decision replay & blind human eval packets
+    ├── run_benchmarks.py                # Master CLI (--mode audit|retrieval|routing|…)
+    ├── metrics.py                       # Shared metric helpers
+    ├── statistical_significance.py      # Paired Bootstrap & Fleiss' Kappa
+    ├── tracing.py                       # LangSmith tracing utilities
+    ├── artifacts/                       # Generated output files (JSON, CSV)
+    └── results/                         # Raw benchmark result snapshots
 ```
 
 ---
@@ -331,29 +350,56 @@ MARS utilizes Supabase as its source of truth and vector database via `pgvector`
 
 ## Running Tests & Benchmarks
 
-### 1. Confidence & Reasoning Unit Tests (9 Tests)
-Validates multi-factor confidence, recency decay, outcome classification, dynamic skipping, and registry persistence:
+### 1. Full Unit Test Suite (16 Tests)
+Runs all reasoning, protocol, and tool-executor tests in one pass:
 ```bash
-PYTHONPATH=backend python -m unittest backend/tests/test_confidence_reasoning.py
+PYTHONPATH=backend backend/.venv/bin/pytest backend/tests/ -v --ignore=backend/tests/run_tier1_benchmarks.py
+```
+
+Individual suites:
+```bash
+# Confidence & reasoning (9 tests): multi-factor scoring, recency decay, outcome classification,
+# dynamic agent skipping, registry persistence
+PYTHONPATH=backend pytest backend/tests/test_confidence_reasoning.py -v
+
+# Leakage-safe protocol (4 tests): temporal split integrity, visible-corpus isolation, replay smoke
+PYTHONPATH=backend pytest backend/tests/test_protocol.py -v
+
+# Tool executor robustness (3 tests): allowlist enforcement, MCP error wrapping, tool-error feedback
+PYTHONPATH=backend pytest backend/tests/test_tool_robustness.py -v
 ```
 
 ### 2. Tier-1 Master Empirical Research Suite
-Runs longitudinal backtesting (2023–2024 train $\rightarrow$ 2025–2026 test, $N=2,080$), Conformal Risk bounds, MultiCorp-QA 4-sector evaluation, and Bootstrap significance testing:
+Longitudinal backtesting (2023–2024 train → 2025–2026 test, N=2,080), Conformal Risk bounds (TW-CRC α=0.05), MultiCorp-QA 4-sector evaluation, and Bootstrap significance testing:
 ```bash
 PYTHONPATH=backend python backend/tests/run_tier1_benchmarks.py
 ```
 
-### 3. Leakage-Safe Research Evaluation (`evaluation_v2`)
-Validates temporal boundaries, absence of lookahead bias, and tool failure degradation:
+### 3. Evaluation Benchmarks (`evaluation/run_benchmarks.py`)
+Master CLI covering all evaluation concerns. Run a quick audit (default) or target a specific module:
+
 ```bash
-pytest -v evaluation_v2/test_protocol.py evaluation_v2/test_tool_robustness.py
-python -m evaluation_v2.research_audit
+# Quick research audit — 50 queries, 40 routing cases (≈ 2 min)
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode audit
+
+# Full suite for a specific module
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode retrieval --full
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode routing --full
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode calibration --full
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode longitudinal --full
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode generation --full
+
+# Run everything
+PYTHONPATH=backend python evaluation/run_benchmarks.py --mode all --full
 ```
 
-### 4. BEIR & G-Eval Retrieval & Generation Benchmarks
-```bash
-python -m evaluation.run_benchmark
-```
+| Flag | Default | Full (`--full`) |
+|---|---|---|
+| `--mode audit` | 50 queries, 40 cases | — |
+| `--mode retrieval` | 100 queries | 500 queries |
+| `--mode routing` | 40 cases | all cases |
+| `--mode calibration` | 200 samples | all samples |
+| `--mode longitudinal` | 800 cases | 1,280 cases |
 
 ---
 
