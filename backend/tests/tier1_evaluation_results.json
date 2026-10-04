@@ -1,6 +1,6 @@
 {
-  "benchmark_timestamp_utc": "2026-09-29 08:55:45",
-  "total_execution_seconds": 7.64,
+  "benchmark_timestamp_utc": "2026-10-04 16:38:52",
+  "total_execution_seconds": 6.87,
   "pillar_1_conformal_risk_bounds": {
     "high_confidence_policy": "PROCEED_AUTONOMOUS",
     "high_confidence_interval": [
@@ -63,8 +63,8 @@
         "company": "Microsoft Corp.",
         "sector": "Big Tech / Software",
         "target": [
-          "operations",
           "finance",
+          "operations",
           "rd"
         ],
         "predicted": [
@@ -126,8 +126,8 @@
         "company": "Pfizer Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "operations",
-          "finance"
+          "finance",
+          "operations"
         ],
         "predicted": [
           "operations"
@@ -168,8 +168,8 @@
         "company": "Moderna Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "legal",
-          "finance"
+          "finance",
+          "legal"
         ],
         "predicted": [
           "legal"
@@ -231,8 +231,8 @@
         "company": "Toyota Motor Corp.",
         "sector": "Clean Energy / Auto",
         "target": [
-          "operations",
-          "finance"
+          "finance",
+          "operations"
         ],
         "predicted": [
           "rd"
@@ -252,8 +252,8 @@
         "company": "JPMorgan Chase",
         "sector": "Banking / Financial Services",
         "target": [
-          "legal",
-          "finance"
+          "finance",
+          "legal"
         ],
         "predicted": [
           "finance"
@@ -273,12 +273,12 @@
         "company": "JPMorgan Chase",
         "sector": "Banking / Financial Services",
         "target": [
-          "legal",
-          "finance"
+          "finance",
+          "legal"
         ],
         "predicted": [
-          "legal",
-          "finance"
+          "finance",
+          "legal"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -295,8 +295,8 @@
         "company": "Goldman Sachs",
         "sector": "Banking / Financial Services",
         "target": [
-          "operations",
-          "finance"
+          "finance",
+          "operations"
         ],
         "predicted": [
           "finance"
@@ -321,9 +321,9 @@
       "test_ground_truth_success_rate": 0.71
     },
     "training_optimization": {
-      "initial_loss_bce": 0.329604,
-      "final_loss_bce": 0.082102,
-      "loss_reduction_pct": 75.09,
+      "initial_loss_bce": 0.332268,
+      "final_loss_bce": 0.082635,
+      "loss_reduction_pct": 75.13,
       "calibrated_weights": [
         0.1,
         0.1,
@@ -332,29 +332,29 @@
     },
     "conformal_calibration": {
       "target_coverage": 0.95,
-      "calibrated_quantile_cutoff_q_hat": 0.1661,
-      "out_of_sample_empirical_coverage": 0.93,
+      "calibrated_quantile_cutoff_q_hat": 0.1679,
+      "out_of_sample_empirical_coverage": 0.9487,
       "abstention_count": 232,
       "caution_flags_count": 0
     },
     "out_of_sample_benchmarks": {
       "baseline_1_uniform": {
-        "ece": 0.24917,
-        "mce": 0.541379,
-        "brier_score": 0.095949,
-        "nll": 0.323465
+        "ece": 0.24905,
+        "mce": 0.611,
+        "brier_score": 0.09587,
+        "nll": 0.323255
       },
       "baseline_2_similarity_only": {
-        "ece": 0.05812,
-        "mce": 0.121687,
-        "brier_score": 0.210936,
-        "nll": 0.616893
+        "ece": 0.052805,
+        "mce": 0.138582,
+        "brier_score": 0.210524,
+        "nll": 0.616062
       },
       "mars_calibrated": {
-        "ece": 0.074751,
-        "mce": 0.160068,
-        "brier_score": 0.008638,
-        "nll": 0.079544,
+        "ece": 0.074715,
+        "mce": 0.159905,
+        "brier_score": 0.008631,
+        "nll": 0.079503,
         "ece_reduction_vs_uniform_pct": 70.0,
         "brier_improvement_vs_sim_only_pct": 95.9
       }
