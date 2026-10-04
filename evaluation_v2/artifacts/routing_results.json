@@ -1,0 +1,124 @@
+{
+  "protocol": "evaluation_v2 semantic routing",
+  "split": "validation",
+  "queries_evaluated": 5,
+  "label_policy": "target department plus departments named in cross_dept_impact",
+  "micro_precision": 1.0,
+  "micro_recall": 0.357143,
+  "micro_f1": 0.526316,
+  "exact_match_rate": 0.0,
+  "avg_active_departments": 1.0,
+  "estimated_agent_call_reduction_vs_static": 0.75,
+  "latency_ms": {
+    "p50": 25.2989,
+    "p95": 344.558,
+    "p99": 344.558,
+    "mean": 88.4976
+  },
+  "per_case": [
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "target_departments": [
+        "finance",
+        "operations",
+        "rd"
+      ],
+      "predicted_departments": [
+        "operations"
+      ],
+      "scores": {
+        "finance": 0.2087,
+        "legal": 0.0852,
+        "rd": 0.0623,
+        "operations": 0.3693
+      },
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "exact_match": false,
+      "latency_ms": 344.558
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "target_departments": [
+        "finance",
+        "operations"
+      ],
+      "predicted_departments": [
+        "operations"
+      ],
+      "scores": {
+        "finance": 0.2898,
+        "legal": 0.0186,
+        "rd": 0.1312,
+        "operations": 0.416
+      },
+      "precision": 1.0,
+      "recall": 0.5,
+      "exact_match": false,
+      "latency_ms": 21.4397
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "target_departments": [
+        "finance",
+        "operations",
+        "rd"
+      ],
+      "predicted_departments": [
+        "operations"
+      ],
+      "scores": {
+        "finance": 0.2696,
+        "legal": 0.0729,
+        "rd": 0.0515,
+        "operations": 0.4347
+      },
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "exact_match": false,
+      "latency_ms": 27.7945
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "target_departments": [
+        "finance",
+        "operations",
+        "rd"
+      ],
+      "predicted_departments": [
+        "operations"
+      ],
+      "scores": {
+        "finance": 0.2856,
+        "legal": 0.0686,
+        "rd": 0.1756,
+        "operations": 0.4629
+      },
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "exact_match": false,
+      "latency_ms": 25.2989
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "target_departments": [
+        "finance",
+        "legal",
+        "operations"
+      ],
+      "predicted_departments": [
+        "operations"
+      ],
+      "scores": {
+        "finance": 0.2462,
+        "legal": 0.1987,
+        "rd": 0.0521,
+        "operations": 0.3911
+      },
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "exact_match": false,
+      "latency_ms": 23.3966
+    }
+  ]
+}

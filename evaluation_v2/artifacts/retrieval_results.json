@@ -1,0 +1,247 @@
+{
+  "protocol": "evaluation_v2 temporal leave-target-out retrieval",
+  "split": "validation",
+  "queries_evaluated": 5,
+  "include_dense": true,
+  "summary": {
+    "bm25_temporal": {
+      "diversity_at_10": 0.755556,
+      "hit_at_1": 1.0,
+      "hit_at_10": 1.0,
+      "hit_at_3": 1.0,
+      "hit_at_5": 1.0,
+      "latency_ms": 23.607025,
+      "mrr": 1.0,
+      "ndcg_at_10": 0.514282,
+      "precision_at_1": 1.0,
+      "precision_at_10": 1.0,
+      "precision_at_3": 1.0,
+      "precision_at_5": 1.0,
+      "recall_at_1": 0.000817,
+      "recall_at_10": 0.008167,
+      "recall_at_3": 0.00245,
+      "recall_at_5": 0.004083
+    },
+    "dense_temporal": {},
+    "hybrid_temporal": {},
+    "hybrid_mmr_temporal": {}
+  },
+  "unavailable_systems": {
+    "dense_temporal": "Cannot send a request, as the client has been closed.",
+    "hybrid_temporal": "Cannot send a request, as the client has been closed.",
+    "hybrid_mmr_temporal": "Cannot send a request, as the client has been closed."
+  },
+  "leakage_violations": [],
+  "per_case": [
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "action_type": "maintain",
+      "visible_corpus_size": 1280,
+      "relevant_pool_size": 1268,
+      "systems": {
+        "bm25_temporal": {
+          "retrieved_ids": [
+            "AAPL-2024Q1-0043",
+            "AAPL-2023Q3-0010",
+            "AAPL-2023Q1-0004",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0028",
+            "AAPL-2024Q3-0001",
+            "AAPL-2024Q1-0001",
+            "AAPL-2023Q1-0101",
+            "AAPL-2023Q4-0028",
+            "AAPL-2024Q2-0010"
+          ],
+          "metrics": {
+            "precision_at_1": 1.0,
+            "recall_at_1": 0.000789,
+            "hit_at_1": 1.0,
+            "precision_at_3": 1.0,
+            "recall_at_3": 0.002366,
+            "hit_at_3": 1.0,
+            "precision_at_5": 1.0,
+            "recall_at_5": 0.003943,
+            "hit_at_5": 1.0,
+            "precision_at_10": 1.0,
+            "recall_at_10": 0.007886,
+            "hit_at_10": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_10": 0.551439,
+            "diversity_at_10": 0.844444,
+            "latency_ms": 41.140834
+          }
+        }
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "action_type": "expand",
+      "visible_corpus_size": 1280,
+      "relevant_pool_size": 1101,
+      "systems": {
+        "bm25_temporal": {
+          "retrieved_ids": [
+            "AAPL-2023Q1-0045",
+            "AAPL-2024Q4-0001",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0001",
+            "AAPL-2024Q1-0001",
+            "AAPL-2023Q3-0003",
+            "AAPL-2024Q4-0011",
+            "AAPL-2024Q1-0015",
+            "AAPL-2024Q2-0001",
+            "AAPL-2024Q2-0010"
+          ],
+          "metrics": {
+            "precision_at_1": 1.0,
+            "recall_at_1": 0.000908,
+            "hit_at_1": 1.0,
+            "precision_at_3": 1.0,
+            "recall_at_3": 0.002725,
+            "hit_at_3": 1.0,
+            "precision_at_5": 1.0,
+            "recall_at_5": 0.004541,
+            "hit_at_5": 1.0,
+            "precision_at_10": 1.0,
+            "recall_at_10": 0.009083,
+            "hit_at_10": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_10": 0.638172,
+            "diversity_at_10": 0.777778,
+            "latency_ms": 17.919208
+          }
+        }
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "action_type": "maintain",
+      "visible_corpus_size": 1280,
+      "relevant_pool_size": 1268,
+      "systems": {
+        "bm25_temporal": {
+          "retrieved_ids": [
+            "AAPL-2024Q2-0011",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0008",
+            "AAPL-2023Q1-0001",
+            "AAPL-2024Q2-0036",
+            "AAPL-2024Q1-0021",
+            "AAPL-2023Q3-0016",
+            "AAPL-2023Q2-0003",
+            "AAPL-2023Q2-0011",
+            "AAPL-2023Q3-0003"
+          ],
+          "metrics": {
+            "precision_at_1": 1.0,
+            "recall_at_1": 0.000789,
+            "hit_at_1": 1.0,
+            "precision_at_3": 1.0,
+            "recall_at_3": 0.002366,
+            "hit_at_3": 1.0,
+            "precision_at_5": 1.0,
+            "recall_at_5": 0.003943,
+            "hit_at_5": 1.0,
+            "precision_at_10": 1.0,
+            "recall_at_10": 0.007886,
+            "hit_at_10": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_10": 0.428571,
+            "diversity_at_10": 0.511111,
+            "latency_ms": 18.873667
+          }
+        }
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "action_type": "maintain",
+      "visible_corpus_size": 1280,
+      "relevant_pool_size": 1268,
+      "systems": {
+        "bm25_temporal": {
+          "retrieved_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0004",
+            "AAPL-2023Q4-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q1-0001",
+            "AAPL-2023Q2-0003",
+            "AAPL-2023Q1-0021",
+            "AAPL-2023Q3-0003",
+            "AAPL-2023Q4-0024",
+            "AAPL-2023Q2-0021"
+          ],
+          "metrics": {
+            "precision_at_1": 1.0,
+            "recall_at_1": 0.000789,
+            "hit_at_1": 1.0,
+            "precision_at_3": 1.0,
+            "recall_at_3": 0.002366,
+            "hit_at_3": 1.0,
+            "precision_at_5": 1.0,
+            "recall_at_5": 0.003943,
+            "hit_at_5": 1.0,
+            "precision_at_10": 1.0,
+            "recall_at_10": 0.007886,
+            "hit_at_10": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_10": 0.428571,
+            "diversity_at_10": 0.777778,
+            "latency_ms": 20.663083
+          }
+        }
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "action_type": "maintain",
+      "visible_corpus_size": 1280,
+      "relevant_pool_size": 1236,
+      "systems": {
+        "bm25_temporal": {
+          "retrieved_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q3-0030",
+            "AAPL-2023Q2-0028",
+            "AAPL-2024Q2-0030",
+            "AAPL-2023Q3-0030",
+            "AAPL-2024Q2-0010",
+            "AAPL-2023Q2-0017",
+            "AAPL-2023Q1-0021",
+            "AAPL-2024Q1-0001"
+          ],
+          "metrics": {
+            "precision_at_1": 1.0,
+            "recall_at_1": 0.000809,
+            "hit_at_1": 1.0,
+            "precision_at_3": 1.0,
+            "recall_at_3": 0.002427,
+            "hit_at_3": 1.0,
+            "precision_at_5": 1.0,
+            "recall_at_5": 0.004045,
+            "hit_at_5": 1.0,
+            "precision_at_10": 1.0,
+            "recall_at_10": 0.008091,
+            "hit_at_10": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_10": 0.524658,
+            "diversity_at_10": 0.866667,
+            "latency_ms": 19.438334
+          }
+        }
+      }
+    }
+  ]
+}
