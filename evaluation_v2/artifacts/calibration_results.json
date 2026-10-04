@@ -1,0 +1,1359 @@
+{
+  "protocol": "evaluation_v2 temporal outcome calibration",
+  "rules": [
+    "Predictions for each target use only prior decisions.",
+    "Precedent outcomes are used only when observation_date <= target decision_date.",
+    "Recency lambda is selected on validation and evaluated once on test."
+  ],
+  "k": 10,
+  "train_cases": 1280,
+  "validation_cases": 20,
+  "test_cases": 20,
+  "train_base_rate": 0.704688,
+  "lambda_grid": [
+    0.0,
+    0.01,
+    0.03,
+    0.05,
+    0.08,
+    0.13
+  ],
+  "selected_lambda": 0.13,
+  "validation": {
+    "0.0": {
+      "brier": 0.3325,
+      "nll": 0.881099,
+      "ece": 0.375,
+      "mce": 0.8,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2,
+          "avg_accuracy": 1.0,
+          "gap": 0.8
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 2,
+          "avg_confidence": 0.4,
+          "avg_accuracy": 1.0,
+          "gap": 0.6
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 7,
+          "avg_confidence": 0.5,
+          "avg_accuracy": 0.8571,
+          "gap": 0.3571
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 2,
+          "avg_confidence": 0.6,
+          "avg_accuracy": 0.5,
+          "gap": -0.1
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 6,
+          "avg_confidence": 0.7,
+          "avg_accuracy": 0.5,
+          "gap": -0.2
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8,
+          "avg_accuracy": 0.0,
+          "gap": -0.8
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "0.01": {
+      "brier": 0.331658,
+      "nll": 0.879394,
+      "ece": 0.374745,
+      "mce": 0.802432,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2012,
+          "avg_accuracy": 1.0,
+          "gap": 0.7988
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 3,
+          "avg_confidence": 0.4368,
+          "avg_accuracy": 1.0,
+          "gap": 0.5632
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 6,
+          "avg_confidence": 0.5022,
+          "avg_accuracy": 0.8333,
+          "gap": 0.3311
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 4,
+          "avg_confidence": 0.6512,
+          "avg_accuracy": 0.5,
+          "gap": -0.1512
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 4,
+          "avg_confidence": 0.7034,
+          "avg_accuracy": 0.5,
+          "gap": -0.2034
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8024,
+          "avg_accuracy": 0.0,
+          "gap": -0.8024
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "0.03": {
+      "brier": 0.330001,
+      "nll": 0.876107,
+      "ece": 0.374144,
+      "mce": 0.807513,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2036,
+          "avg_accuracy": 1.0,
+          "gap": 0.7964
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 3,
+          "avg_confidence": 0.4437,
+          "avg_accuracy": 1.0,
+          "gap": 0.5563
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 6,
+          "avg_confidence": 0.5068,
+          "avg_accuracy": 0.8333,
+          "gap": 0.3265
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 4,
+          "avg_confidence": 0.6535,
+          "avg_accuracy": 0.5,
+          "gap": -0.1535
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 4,
+          "avg_confidence": 0.7102,
+          "avg_accuracy": 0.5,
+          "gap": -0.2102
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8075,
+          "avg_accuracy": 0.0,
+          "gap": -0.8075
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "0.05": {
+      "brier": 0.32838,
+      "nll": 0.872988,
+      "ece": 0.37342,
+      "mce": 0.812867,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2059,
+          "avg_accuracy": 1.0,
+          "gap": 0.7941
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 3,
+          "avg_confidence": 0.4505,
+          "avg_accuracy": 1.0,
+          "gap": 0.5495
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 6,
+          "avg_confidence": 0.5118,
+          "avg_accuracy": 0.8333,
+          "gap": 0.3216
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 4,
+          "avg_confidence": 0.6554,
+          "avg_accuracy": 0.5,
+          "gap": -0.1554
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 4,
+          "avg_confidence": 0.7169,
+          "avg_accuracy": 0.5,
+          "gap": -0.2169
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8129,
+          "avg_accuracy": 0.0,
+          "gap": -0.8129
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "0.08": {
+      "brier": 0.326025,
+      "nll": 0.868633,
+      "ece": 0.372099,
+      "mce": 0.821366,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2093,
+          "avg_accuracy": 1.0,
+          "gap": 0.7907
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 3,
+          "avg_confidence": 0.4605,
+          "avg_accuracy": 1.0,
+          "gap": 0.5395
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 6,
+          "avg_confidence": 0.5197,
+          "avg_accuracy": 0.8333,
+          "gap": 0.3136
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 4,
+          "avg_confidence": 0.6578,
+          "avg_accuracy": 0.5,
+          "gap": -0.1578
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 4,
+          "avg_confidence": 0.727,
+          "avg_accuracy": 0.5,
+          "gap": -0.227
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8214,
+          "avg_accuracy": 0.0,
+          "gap": -0.8214
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "0.13": {
+      "brier": 0.322331,
+      "nll": 0.862295,
+      "ece": 0.369266,
+      "mce": 0.836572,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 2,
+          "avg_confidence": 0.2147,
+          "avg_accuracy": 1.0,
+          "gap": 0.7853
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 3,
+          "avg_confidence": 0.4769,
+          "avg_accuracy": 1.0,
+          "gap": 0.5231
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 6,
+          "avg_confidence": 0.5343,
+          "avg_accuracy": 0.8333,
+          "gap": 0.2991
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 4,
+          "avg_confidence": 0.6602,
+          "avg_accuracy": 0.5,
+          "gap": -0.1602
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 4,
+          "avg_confidence": 0.7433,
+          "avg_accuracy": 0.5,
+          "gap": -0.2433
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 1,
+          "avg_confidence": 0.8366,
+          "avg_accuracy": 0.0,
+          "gap": -0.8366
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    }
+  },
+  "test": {
+    "base_rate": {
+      "brier": 0.189553,
+      "nll": 0.567431,
+      "ece": 0.045312,
+      "mce": 0.045312,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 0,
+          "avg_confidence": 0.25,
+          "avg_accuracy": 0.0,
+          "gap": -0.25
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 0,
+          "avg_confidence": 0.45,
+          "avg_accuracy": 0.0,
+          "gap": -0.45
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 0,
+          "avg_confidence": 0.55,
+          "avg_accuracy": 0.0,
+          "gap": -0.55
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 0,
+          "avg_confidence": 0.65,
+          "avg_accuracy": 0.0,
+          "gap": -0.65
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 20,
+          "avg_confidence": 0.7047,
+          "avg_accuracy": 0.75,
+          "gap": 0.0453
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 0,
+          "avg_confidence": 0.85,
+          "avg_accuracy": 0.0,
+          "gap": -0.85
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 0,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.0,
+          "gap": -0.95
+        }
+      ]
+    },
+    "rag_precedent_success_rate": {
+      "brier": 0.1905,
+      "nll": 1.822865,
+      "ece": 0.195,
+      "mce": 0.6,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 0,
+          "avg_confidence": 0.25,
+          "avg_accuracy": 0.0,
+          "gap": -0.25
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 0,
+          "avg_confidence": 0.45,
+          "avg_accuracy": 0.0,
+          "gap": -0.45
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 0,
+          "avg_confidence": 0.55,
+          "avg_accuracy": 0.0,
+          "gap": -0.55
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 1,
+          "avg_confidence": 0.6,
+          "avg_accuracy": 0.0,
+          "gap": -0.6
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 6,
+          "avg_confidence": 0.7,
+          "avg_accuracy": 0.6667,
+          "gap": -0.0333
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 7,
+          "avg_confidence": 0.8,
+          "avg_accuracy": 1.0,
+          "gap": 0.2
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 6,
+          "avg_confidence": 0.95,
+          "avg_accuracy": 0.6667,
+          "gap": -0.2833
+        }
+      ]
+    },
+    "recency_weighted_precedent_success_rate": {
+      "brier": 0.190852,
+      "nll": 1.823372,
+      "ece": 0.135495,
+      "mce": 0.333333,
+      "bins": [
+        {
+          "bin": 0,
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "avg_confidence": 0.05,
+          "avg_accuracy": 0.0,
+          "gap": -0.05
+        },
+        {
+          "bin": 1,
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "avg_confidence": 0.15,
+          "avg_accuracy": 0.0,
+          "gap": -0.15
+        },
+        {
+          "bin": 2,
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 0,
+          "avg_confidence": 0.25,
+          "avg_accuracy": 0.0,
+          "gap": -0.25
+        },
+        {
+          "bin": 3,
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "avg_confidence": 0.35,
+          "avg_accuracy": 0.0,
+          "gap": -0.35
+        },
+        {
+          "bin": 4,
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 0,
+          "avg_confidence": 0.45,
+          "avg_accuracy": 0.0,
+          "gap": -0.45
+        },
+        {
+          "bin": 5,
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 0,
+          "avg_confidence": 0.55,
+          "avg_accuracy": 0.0,
+          "gap": -0.55
+        },
+        {
+          "bin": 6,
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 3,
+          "avg_confidence": 0.6667,
+          "avg_accuracy": 0.3333,
+          "gap": -0.3333
+        },
+        {
+          "bin": 7,
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 6,
+          "avg_confidence": 0.7321,
+          "avg_accuracy": 0.8333,
+          "gap": 0.1012
+        },
+        {
+          "bin": 8,
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 7,
+          "avg_confidence": 0.8282,
+          "avg_accuracy": 0.8571,
+          "gap": 0.0289
+        },
+        {
+          "bin": 9,
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 4,
+          "avg_confidence": 0.975,
+          "avg_accuracy": 0.75,
+          "gap": -0.225
+        }
+      ]
+    }
+  },
+  "conformal": {
+    "alpha": 0.05,
+    "qhat": 0.836572,
+    "coverage": 0.9,
+    "mean_width": 0.966095,
+    "median_width": 1.0,
+    "abstention_rate_lower_bound_lt_0_30": 1.0,
+    "selective_risk_non_abstained": null
+  },
+  "per_case": [
+    {
+      "case_id": "AAPL-2025Q3-0001",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "expand",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.8,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0016",
+        "AAPL-2025Q2-0031",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0002",
+        "AAPL-2025Q2-0004",
+        "AAPL-2025Q2-0008",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0012"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0002",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "reduce",
+      "label": 0,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.696307,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0011",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q1-0024",
+        "AAPL-2025Q2-0025",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q2-0033"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0003",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "expand",
+      "label": 1,
+      "rag_prediction": 0.9,
+      "recency_prediction": 0.898769,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0007",
+        "AAPL-2025Q2-0015",
+        "AAPL-2025Q2-0022",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q1-0004",
+        "AAPL-2025Q2-0028",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0025"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0004",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "revise",
+      "label": 1,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.7,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0036",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0014",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0039"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0005",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "reduce",
+      "label": 1,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.696307,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0011",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0025",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q1-0024",
+        "AAPL-2025Q2-0033"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0006",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "expand",
+      "label": 0,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.7,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0029",
+        "AAPL-2025Q2-0008",
+        "AAPL-2025Q2-0015",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0004",
+        "AAPL-2025Q2-0006"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0007",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "revise",
+      "label": 1,
+      "rag_prediction": 0.9,
+      "recency_prediction": 0.9,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0008",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0017",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0022",
+        "AAPL-2025Q2-0030"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0008",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "revise",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.8,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0025",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0029",
+        "AAPL-2025Q2-0015",
+        "AAPL-2025Q2-0022",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0005"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0009",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.8,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0031",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0020"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0010",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 0,
+      "rag_prediction": 1.0,
+      "recency_prediction": 1.0,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0035",
+        "AAPL-2025Q2-0024",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q1-0024",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0034",
+        "AAPL-2025Q1-0029",
+        "AAPL-2025Q2-0037"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0011",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "expand",
+      "label": 1,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.7,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0035",
+        "AAPL-2025Q2-0008",
+        "AAPL-2025Q2-0006",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0029",
+        "AAPL-2025Q2-0015",
+        "AAPL-2025Q2-0026"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0012",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 1.0,
+      "recency_prediction": 1.0,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q1-0004",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0035",
+        "AAPL-2025Q2-0016",
+        "AAPL-2025Q2-0008",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0031"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0013",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.8,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0026",
+        "AAPL-2025Q2-0010",
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0022"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0014",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "revise",
+      "label": 0,
+      "rag_prediction": 0.9,
+      "recency_prediction": 0.898769,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0016",
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0035",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0041",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q1-0004",
+        "AAPL-2025Q2-0020"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0015",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "reduce",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.797538,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0011",
+        "AAPL-2025Q1-0024",
+        "AAPL-2025Q2-0025",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q2-0033",
+        "AAPL-2025Q2-0034"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0016",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 1.0,
+      "recency_prediction": 1.0,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0031",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0009",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0024",
+        "AAPL-2025Q2-0018",
+        "AAPL-2025Q2-0020"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0017",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "revise",
+      "label": 0,
+      "rag_prediction": 0.6,
+      "recency_prediction": 0.607385,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0029",
+        "AAPL-2025Q1-0013",
+        "AAPL-2025Q2-0012",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0023",
+        "AAPL-2025Q2-0022",
+        "AAPL-2025Q2-0016",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0036",
+        "AAPL-2025Q2-0032"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0018",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.8,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0024",
+        "AAPL-2025Q2-0021",
+        "AAPL-2025Q2-0035",
+        "AAPL-2025Q2-0039",
+        "AAPL-2025Q2-0037",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q2-0019",
+        "AAPL-2025Q2-0023"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0019",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "maintain",
+      "label": 1,
+      "rag_prediction": 0.7,
+      "recency_prediction": 0.7,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0032",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0007",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0024",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0029",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q2-0023"
+      ]
+    },
+    {
+      "case_id": "AAPL-2025Q3-0020",
+      "decision_date": "2025-07-31",
+      "department": "Operations",
+      "action_type": "reduce",
+      "label": 1,
+      "rag_prediction": 0.8,
+      "recency_prediction": 0.795015,
+      "visible_precedent_outcomes": 10,
+      "retrieved_ids": [
+        "AAPL-2025Q2-0011",
+        "AAPL-2025Q1-0043",
+        "AAPL-2025Q2-0030",
+        "AAPL-2025Q2-0020",
+        "AAPL-2025Q2-0025",
+        "AAPL-2025Q2-0042",
+        "AAPL-2025Q2-0034",
+        "AAPL-2025Q2-0038",
+        "AAPL-2025Q2-0040",
+        "AAPL-2025Q1-0024"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,946 @@
+{
+  "protocol": "MARS blind human evaluation packet",
+  "instructions": [
+    "Raters should not see source_system labels.",
+    "Randomize case order per rater if possible.",
+    "Use 3-5 raters and report inter-rater reliability.",
+    "Ground truth block is for adjudication setup, not shown with system outputs unless using outcome-aware scoring."
+  ],
+  "cases": [
+    {
+      "case_id": "AAPL-2025Q1-0001",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Alternate Supplier Approval for iPhone Camera Lens Coating\nContext: Apple channel and manufacturing operations executed the formal decision regarding Alternate Supplier Approval for iPhone Camera Lens Coating. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Production continuity prioritized over minor cost increase; avoids launch inventory shortage risk.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Alternate Supplier Approval for iPhone Camera Lens Coating, Finance warned of long-term cost creep; R&D warned of coating durability variation; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Approve alternate supplier",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Alternate Supplier Approval for iPhone Camera Lens Coating': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System B": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q1-0043",
+            "AAPL-2023Q3-0010",
+            "AAPL-2023Q1-0004",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0028"
+          ]
+        },
+        "System C": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q1-0043",
+            "AAPL-2023Q3-0010",
+            "AAPL-2023Q1-0004",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0028"
+          ]
+        },
+        "System D": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System E": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0002",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Increase MacBook Assembly Overtime for Holiday Backlog\nContext: Apple channel and manufacturing operations executed the formal decision regarding Increase MacBook Assembly Overtime for Holiday Backlog. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Fastest way to meet demand without disrupting other product lines; limited short-term cost impact.\nCross-department considerations: Finance;HR\nConflicting perspectives: During executive review of Increase MacBook Assembly Overtime for Holiday Backlog, Finance warned overtime cost reduces gross margin; Ops argued demand loss is worse; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Overtime shifts",
+        "outcome_label": "failure",
+        "observation_excerpt": "Subsequent operational audits published on 2025-05-01 revealed setbacks regarding 'Increase MacBook Assembly Overtime for Holiday Backlog': assembly line yield dropped 4.2% below forecast and localized component shortages in Asian packaging hubs led to an 8-day retail fulfillment delay across European channels."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System B": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0045",
+            "AAPL-2024Q4-0001",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0001",
+            "AAPL-2024Q1-0001"
+          ]
+        },
+        "System C": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System D": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005"
+          ]
+        },
+        "System E": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0045",
+            "AAPL-2024Q4-0001",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0001",
+            "AAPL-2024Q1-0001"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0003",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Expedite iPhone Display Shipment via Air Freight\nContext: Apple channel and manufacturing operations executed the formal decision regarding Expedite iPhone Display Shipment via Air Freight. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Avoids stockouts while limiting cost spike; supports revenue capture in peak demand. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Expedite iPhone Display Shipment via Air Freight, Finance flagged margin hit; Ops argued lost sales would exceed freight cost; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Air freight partial",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Expedite iPhone Display Shipment via Air Freight': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System B": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q2-0011",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0008",
+            "AAPL-2023Q1-0001",
+            "AAPL-2024Q2-0036"
+          ]
+        },
+        "System C": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q2-0011",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0008",
+            "AAPL-2023Q1-0001",
+            "AAPL-2024Q2-0036"
+          ]
+        },
+        "System D": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System E": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0004",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Shift iPad Assembly Capacity to MacBook Line\nContext: Apple channel and manufacturing operations executed the formal decision regarding Shift iPad Assembly Capacity to MacBook Line. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Captures Mac revenue spike while minimizing iPad channel disruption. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Shift iPad Assembly Capacity to MacBook Line, Finance wanted larger shift; Ops worried about iPad refresh demand volatility; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Shift 5%",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Shift iPad Assembly Capacity to MacBook Line': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0004",
+            "AAPL-2023Q4-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q1-0001"
+          ]
+        },
+        "System B": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0004",
+            "AAPL-2023Q4-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q1-0001"
+          ]
+        },
+        "System C": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System D": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System E": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0005",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Recall Limited Batch of AirPods Charging Cases\nContext: Apple channel and manufacturing operations executed the formal decision regarding Recall Limited Batch of AirPods Charging Cases. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Prevents PR disaster and reduces liability; targeted recall minimizes cost. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Legal;Finance\nConflicting perspectives: During executive review of Recall Limited Batch of AirPods Charging Cases, Finance argued monitor-only saves cost; Legal insisted liability exposure is too high; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Recall batch",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Recall Limited Batch of AirPods Charging Cases': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005"
+          ]
+        },
+        "System B": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System C": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q3-0030",
+            "AAPL-2023Q2-0028",
+            "AAPL-2024Q2-0030"
+          ]
+        },
+        "System D": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System E": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q4-0006",
+            "AAPL-2024Q3-0030",
+            "AAPL-2023Q2-0028",
+            "AAPL-2024Q2-0030"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0006",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Approve Alternate Supplier for iPhone Speaker Mesh\nContext: Apple channel and manufacturing operations executed the formal decision regarding Approve Alternate Supplier for iPhone Speaker Mesh. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Production continuity is critical during holiday quarter; minor cost increase acceptable. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Approve Alternate Supplier for iPhone Speaker Mesh, Finance warned long-term cost creep; Ops prioritized meeting shipment targets; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Approve alternate supplier",
+        "outcome_label": "failure",
+        "observation_excerpt": "Subsequent operational audits published on 2025-05-01 revealed setbacks regarding 'Approve Alternate Supplier for iPhone Speaker Mesh': assembly line yield dropped 4.2% below forecast and localized component shortages in Asian packaging hubs led to an 8-day retail fulfillment delay across European channels."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0004",
+            "AAPL-2024Q1-0011",
+            "AAPL-2024Q2-0010",
+            "AAPL-2023Q1-0101"
+          ]
+        },
+        "System B": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0004",
+            "AAPL-2024Q1-0011",
+            "AAPL-2024Q2-0010",
+            "AAPL-2023Q1-0101"
+          ]
+        },
+        "System C": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System D": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System E": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0007",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Increase Final Assembly QC for iPad Mini Display Tint Issue\nContext: Apple channel and manufacturing operations executed the formal decision regarding Increase Final Assembly QC for iPad Mini Display Tint Issue. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Short-term throughput impact is justified to avoid return costs and PR damage. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Increase Final Assembly QC for iPad Mini Display Tint Issue, Finance worried about throughput loss; Ops insisted returns are worse; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Add full QC step",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Increase Final Assembly QC for iPad Mini Display Tint Issue': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q1-0001",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0004",
+            "AAPL-2023Q1-0041",
+            "AAPL-2023Q1-0021"
+          ]
+        },
+        "System B": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System C": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System D": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q1-0001",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q3-0004",
+            "AAPL-2023Q1-0041",
+            "AAPL-2023Q1-0021"
+          ]
+        },
+        "System E": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0008",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Approve Emergency Packaging Redesign for Mac Mini Shipping\nContext: Apple channel and manufacturing operations executed the formal decision regarding Approve Emergency Packaging Redesign for Mac Mini Shipping. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Reduces returns and replacement cost with minimal packaging expense. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;R&D\nConflicting perspectives: During executive review of Approve Emergency Packaging Redesign for Mac Mini Shipping, Finance questioned extra cost; Ops argued return cost is larger; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Add protective foam",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Approve Emergency Packaging Redesign for Mac Mini Shipping': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System B": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System C": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q3-0023",
+            "AAPL-2024Q3-0102",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0071"
+          ]
+        },
+        "System D": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q3-0023",
+            "AAPL-2024Q3-0102",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0071"
+          ]
+        },
+        "System E": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0009",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Implement Vendor Scorecard Penalties for Late Deliveries\nContext: Apple channel and manufacturing operations executed the formal decision regarding Implement Vendor Scorecard Penalties for Late Deliveries. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Creates discipline without destabilizing supply chain relationships. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;Legal\nConflicting perspectives: During executive review of Implement Vendor Scorecard Penalties for Late Deliveries, Legal wanted softer approach to avoid disputes; Ops insisted enforcement is needed; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Apply penalties",
+        "outcome_label": "failure",
+        "observation_excerpt": "Subsequent operational audits published on 2025-05-01 revealed setbacks regarding 'Implement Vendor Scorecard Penalties for Late Deliveries': assembly line yield dropped 4.2% below forecast and localized component shortages in Asian packaging hubs led to an 8-day retail fulfillment delay across European channels."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005"
+          ]
+        },
+        "System B": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        },
+        "System C": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System D": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0069",
+            "AAPL-2024Q3-0069",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0004",
+            "AAPL-2024Q1-0067"
+          ]
+        },
+        "System E": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0069",
+            "AAPL-2024Q3-0069",
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0004",
+            "AAPL-2024Q1-0067"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    },
+    {
+      "case_id": "AAPL-2025Q1-0010",
+      "decision_date": "2025-01-30",
+      "department": "Operations",
+      "query": "Department: Operations\nDecision: Shift Logistics Route Away from Congested Singapore Port\nContext: Apple channel and manufacturing operations executed the formal decision regarding Shift Logistics Route Away from Congested Singapore Port. Operations leadership directed logistics and supply chain coordinators to coordinate directly with primary assembly partners Foxconn, Luxshare Precision, and Pegatron to adjust line throughput, buffer stock thresholds, and regional distribution allocations across North America, Europe, and Asia-Pacific.\nKnown rationale at decision time: Maintains supply flow with manageable cost increase; avoids channel shortages. This operational adjustment maintains component supply continuity, prevents retail channel stockouts, and preserves hardware segment gross margin targets against raw material price volatility.\nCross-department considerations: Finance;Legal\nConflicting perspectives: During executive review of Shift Logistics Route Away from Congested Singapore Port, Finance worried about logistics cost; Ops insisted missed deliveries cost more; Operations emphasized protecting factory throughput and carrier delivery SLAs with assembly partners Foxconn and Luxshare; Finance objected to higher working capital commitments and freight expediting surcharges; Executive leadership approved the operational measure subject to weekly yield and inventory velocity monitoring.",
+      "ground_truth_for_adjudicator_only": {
+        "documented_action": "Partial reroute",
+        "outcome_label": "success",
+        "observation_excerpt": "Empirical operational data published on 2025-05-01 confirmed the successful outcome of 'Shift Logistics Route Away from Congested Singapore Port': factory production stabilized at 98.4% yield efficiency, regional carrier delivery lead times improved by 16%, and product gross margin reached 39.5%."
+      },
+      "systems": {
+        "System A": {
+          "source_system": "dynamic_mars_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005"
+          ]
+        },
+        "System B": {
+          "source_system": "hybrid_rag_optional_dense",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0113",
+            "AAPL-2023Q3-0018",
+            "AAPL-2023Q1-0101"
+          ]
+        },
+        "System C": {
+          "source_system": "naive_bm25_rag",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2023Q1-0001",
+            "AAPL-2023Q1-0049",
+            "AAPL-2023Q1-0113",
+            "AAPL-2023Q3-0018",
+            "AAPL-2023Q1-0101"
+          ]
+        },
+        "System D": {
+          "source_system": "llm_only",
+          "system_output": "",
+          "retrieved_case_ids": []
+        },
+        "System E": {
+          "source_system": "static_multi_agent_context",
+          "system_output": "",
+          "retrieved_case_ids": [
+            "AAPL-2024Q4-0046",
+            "AAPL-2024Q4-0047",
+            "AAPL-2024Q4-0048",
+            "AAPL-2024Q4-0049",
+            "AAPL-2024Q4-0050",
+            "AAPL-2024Q4-0129",
+            "AAPL-2024Q4-0130",
+            "AAPL-2024Q4-0131",
+            "AAPL-2024Q4-0132",
+            "AAPL-2024Q4-0133",
+            "AAPL-2024Q4-0001",
+            "AAPL-2024Q4-0002",
+            "AAPL-2024Q4-0003",
+            "AAPL-2024Q4-0004",
+            "AAPL-2024Q4-0005",
+            "AAPL-2024Q4-0091",
+            "AAPL-2024Q4-0092",
+            "AAPL-2024Q4-0093",
+            "AAPL-2024Q4-0094",
+            "AAPL-2024Q4-0095"
+          ]
+        }
+      },
+      "rubric": {
+        "action_alignment": "1-5: Does the recommendation align with the historically successful/appropriate action?",
+        "evidence_grounding": "1-5: Are claims grounded in visible precedents rather than unsupported assertions?",
+        "risk_foresight": "1-5: Does it identify material downstream risks?",
+        "conflict_awareness": "1-5: Does it surface cross-department trade-offs?",
+        "abstention_appropriateness": "1-5: Does it abstain or caveat appropriately when evidence is weak?"
+      }
+    }
+  ]
+}
