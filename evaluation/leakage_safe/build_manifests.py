@@ -6,14 +6,14 @@ import argparse
 import json
 from pathlib import Path
 
-from evaluation_v2.dataset import REPO_ROOT, build_split_manifest, load_cases
+from evaluation.leakage_safe.dataset import REPO_ROOT, build_split_manifest, load_cases
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build MARS evaluation_v2 manifests.")
+    parser = argparse.ArgumentParser(description="Build MARS evaluation.leakage_safe manifests.")
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "split_manifest.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "split_manifest.json"),
         help="Path for the generated split manifest JSON.",
     )
     args = parser.parse_args()

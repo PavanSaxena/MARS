@@ -1,6 +1,6 @@
 {
-  "benchmark_timestamp_utc": "2026-10-04 16:38:52",
-  "total_execution_seconds": 6.87,
+  "benchmark_timestamp_utc": "2026-10-04 16:48:26",
+  "total_execution_seconds": 5.33,
   "pillar_1_conformal_risk_bounds": {
     "high_confidence_policy": "PROCEED_AUTONOMOUS",
     "high_confidence_interval": [
@@ -147,8 +147,8 @@
         "company": "Pfizer Inc.",
         "sector": "Healthcare / Biopharma",
         "target": [
-          "legal",
-          "rd"
+          "rd",
+          "legal"
         ],
         "predicted": [
           "operations"
@@ -189,8 +189,8 @@
         "company": "Tesla Inc.",
         "sector": "Clean Energy / Auto",
         "target": [
-          "legal",
-          "rd"
+          "rd",
+          "legal"
         ],
         "predicted": [
           "rd"
@@ -321,9 +321,9 @@
       "test_ground_truth_success_rate": 0.71
     },
     "training_optimization": {
-      "initial_loss_bce": 0.332268,
-      "final_loss_bce": 0.082635,
-      "loss_reduction_pct": 75.13,
+      "initial_loss_bce": 0.33078,
+      "final_loss_bce": 0.082288,
+      "loss_reduction_pct": 75.12,
       "calibrated_weights": [
         0.1,
         0.1,
@@ -332,31 +332,31 @@
     },
     "conformal_calibration": {
       "target_coverage": 0.95,
-      "calibrated_quantile_cutoff_q_hat": 0.1679,
+      "calibrated_quantile_cutoff_q_hat": 0.1685,
       "out_of_sample_empirical_coverage": 0.9487,
       "abstention_count": 232,
       "caution_flags_count": 0
     },
     "out_of_sample_benchmarks": {
       "baseline_1_uniform": {
-        "ece": 0.24905,
-        "mce": 0.611,
-        "brier_score": 0.09587,
-        "nll": 0.323255
+        "ece": 0.248839,
+        "mce": 0.542961,
+        "brier_score": 0.096171,
+        "nll": 0.323436
       },
       "baseline_2_similarity_only": {
-        "ece": 0.052805,
-        "mce": 0.138582,
-        "brier_score": 0.210524,
-        "nll": 0.616062
+        "ece": 0.060632,
+        "mce": 0.120471,
+        "brier_score": 0.211541,
+        "nll": 0.617761
       },
       "mars_calibrated": {
-        "ece": 0.074715,
-        "mce": 0.159905,
-        "brier_score": 0.008631,
-        "nll": 0.079503,
+        "ece": 0.074652,
+        "mce": 0.160393,
+        "brier_score": 0.008658,
+        "nll": 0.079457,
         "ece_reduction_vs_uniform_pct": 70.0,
-        "brier_improvement_vs_sim_only_pct": 95.9
+        "brier_improvement_vs_sim_only_pct": 95.91
       }
     }
   },

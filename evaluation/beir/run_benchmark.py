@@ -214,14 +214,14 @@ def main():
         return
 
     if args.mode in ("retrieval", "all"):
-        from evaluation.eval_retrieval import run_retrieval_benchmark
+        from evaluation.beir.eval_retrieval import run_retrieval_benchmark
         print("\n" + "=" * 60)
         print("PHASE 1: RETRIEVAL BENCHMARK")
         print("=" * 60)
         retrieval_data = run_retrieval_benchmark()
 
     if args.mode in ("generation", "all"):
-        from evaluation.eval_generation import run_generation_benchmark
+        from evaluation.beir.eval_generation import run_generation_benchmark
         print("\n" + "=" * 60)
         print("PHASE 2: GENERATION BENCHMARK")
         print("=" * 60)

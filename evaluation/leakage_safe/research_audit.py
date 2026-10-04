@@ -6,16 +6,16 @@ import argparse
 import json
 from pathlib import Path
 
-from evaluation_v2.build_manifests import main as _manifest_main
-from evaluation_v2.calibration import run_calibration_evaluation
-from evaluation_v2.dataset import REPO_ROOT, build_split_manifest, load_cases
-from evaluation_v2.retrieval import run_retrieval_evaluation
-from evaluation_v2.routing import run_routing_evaluation
-from evaluation_v2.run_replay_outputs import run_replay_outputs
+from evaluation.leakage_safe.build_manifests import main as _manifest_main
+from evaluation.leakage_safe.calibration import run_calibration_evaluation
+from evaluation.leakage_safe.dataset import REPO_ROOT, build_split_manifest, load_cases
+from evaluation.leakage_safe.retrieval import run_retrieval_evaluation
+from evaluation.leakage_safe.routing import run_routing_evaluation
+from evaluation.leakage_safe.run_replay_outputs import run_replay_outputs
 
 
 def run_research_audit(*, quick: bool = True) -> dict:
-    output_dir = REPO_ROOT / "evaluation_v2" / "artifacts"
+    output_dir = REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts"
     output_dir.mkdir(parents=True, exist_ok=True)
     cases = load_cases()
     manifest = build_split_manifest(cases, output_dir / "split_manifest.json")
@@ -89,7 +89,7 @@ def _routing_summary(routing: dict) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run evaluation_v2 research audit.")
+    parser = argparse.ArgumentParser(description="Run evaluation.leakage_safe research audit.")
     parser.add_argument("--full", action="store_true", help="Use full test split for retrieval/routing.")
     args = parser.parse_args()
     result = run_research_audit(quick=not args.full)
