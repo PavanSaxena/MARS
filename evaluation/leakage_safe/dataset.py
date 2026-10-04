@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # leakage_safe -> evaluation -> MARS root
 DATASET_DIR = REPO_ROOT / "dataset"
 DEFAULT_SPLIT_SPEC = {
     "train": {"start": "2023-01-01", "end": "2024-12-31"},
@@ -239,7 +239,7 @@ def build_split_manifest(
 ) -> Dict[str, Any]:
     splits = split_cases(cases, split_spec)
     manifest = {
-        "protocol": "MARS evaluation_v2 leakage-safe chronological split",
+        "protocol": "MARS evaluation.leakage_safe leakage-safe chronological split",
         "rules": [
             "Training/calibration/test assignment is based on decision_date.",
             "Replay retrieval must exclude the target case.",

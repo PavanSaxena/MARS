@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from evaluation_v2.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation_v2.metrics import calibration_curve
-from evaluation_v2.retrieval import BM25Index
+from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.leakage_safe.metrics import calibration_curve
+from evaluation.leakage_safe.retrieval import BM25Index
 
 
 DEFAULT_LAMBDAS = [0.0, 0.01, 0.03, 0.05, 0.08, 0.13]
@@ -58,7 +58,7 @@ def run_calibration_evaluation(
     conformal = _evaluate_conformal(recency_probs, test_labels, qhat=qhat)
 
     return {
-        "protocol": "evaluation_v2 temporal outcome calibration",
+        "protocol": "evaluation.leakage_safe temporal outcome calibration",
         "rules": [
             "Predictions for each target use only prior decisions.",
             "Precedent outcomes are used only when observation_date <= target decision_date.",
@@ -200,7 +200,7 @@ def main() -> None:
     parser.add_argument("--max-test-cases", type=int, default=None)
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "calibration_results.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "calibration_results.json"),
     )
     args = parser.parse_args()
     result = run_calibration_evaluation(

@@ -69,7 +69,7 @@ if str(MARS_DIR) not in sys.path:
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from evaluation.benchmark_dataset import (
+from evaluation.beir.benchmark_dataset import (
     get_stratified_generation_sample,
     load_verified_2023_dataset,
 )

@@ -15,9 +15,9 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-from evaluation_v2.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation_v2.metrics import mean_dicts
-from evaluation_v2.retrieval import BM25Index, HybridIndex
+from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.leakage_safe.metrics import mean_dicts
+from evaluation.leakage_safe.retrieval import BM25Index, HybridIndex
 
 
 SYSTEMS = [
@@ -105,7 +105,7 @@ def build_replay_cases(
         )
 
     return {
-        "protocol": "evaluation_v2 historical decision replay packet",
+        "protocol": "evaluation.leakage_safe historical decision replay packet",
         "split": split_name,
         "cases": len(rows),
         "k": k,
@@ -304,11 +304,11 @@ def main() -> None:
     parser.add_argument("--include-dense", action="store_true")
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "decision_replay_packet.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "decision_replay_packet.json"),
     )
     parser.add_argument(
         "--human-output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "blind_human_eval_packet.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "blind_human_eval_packet.json"),
     )
     args = parser.parse_args()
     replay = build_replay_cases(

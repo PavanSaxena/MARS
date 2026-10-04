@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Set
 
-from evaluation_v2.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases
+from evaluation.leakage_safe.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases
 
 
 DEPT_MAP = {
@@ -40,7 +40,7 @@ def run_routing_evaluation(*, split_name: str = "test", max_queries: int | None 
             predicted, scores = route_departments_semantically(replay_query_text(case))
         except Exception as exc:
             return {
-                "protocol": "evaluation_v2 semantic routing",
+                "protocol": "evaluation.leakage_safe semantic routing",
                 "split": split_name,
                 "queries_evaluated": len(per_case),
                 "status": "blocked_by_router_runtime",
@@ -82,7 +82,7 @@ def run_routing_evaluation(*, split_name: str = "test", max_queries: int | None 
     estimated_agent_reduction = 1 - (avg_active / static_agents) if static_agents else 0.0
 
     return {
-        "protocol": "evaluation_v2 semantic routing",
+        "protocol": "evaluation.leakage_safe semantic routing",
         "split": split_name,
         "queries_evaluated": len(per_case),
         "label_policy": "target department plus departments named in cross_dept_impact",
@@ -134,7 +134,7 @@ def main() -> None:
     parser.add_argument("--max-queries", type=int, default=None)
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "routing_results.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "routing_results.json"),
     )
     args = parser.parse_args()
     result = run_routing_evaluation(split_name=args.split, max_queries=args.max_queries)

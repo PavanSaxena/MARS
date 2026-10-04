@@ -15,19 +15,19 @@ Core rules:
 Initial manifest:
 
 ```bash
-python3 -m evaluation_v2.build_manifests
+python3 -m evaluation.leakage_safe.build_manifests
 ```
 
 Quick combined audit:
 
 ```bash
-backend/.venv/bin/python -m evaluation_v2.research_audit
+backend/.venv/bin/python -m evaluation.leakage_safe.research_audit
 ```
 
 Protocol tests:
 
 ```bash
-backend/.venv/bin/pytest -q evaluation_v2/test_protocol.py evaluation_v2/test_tool_robustness.py
+backend/.venv/bin/pytest -q evaluation/leakage_safe/test_protocol.py evaluation_v2/test_tool_robustness.py
 ```
 
 See `EXPERIMENT_PLAN.md` for the paper-oriented experiment matrix and
@@ -36,5 +36,5 @@ acceptance criteria.
 Replay outputs and trace smoke test:
 
 ```bash
-backend/.venv/bin/python -m evaluation_v2.run_replay_outputs --split validation --max-cases 25
+backend/.venv/bin/python -m evaluation.leakage_safe.run_replay_outputs --split validation --max-cases 25
 ```

@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Sequence, Set, Tuple
 
 import numpy as np
 
-from evaluation_v2.dataset import (
+from evaluation.leakage_safe.dataset import (
     REPO_ROOT,
     CaseRecord,
     decision_text,
@@ -28,7 +28,7 @@ from evaluation_v2.dataset import (
     split_cases,
     visible_corpus,
 )
-from evaluation_v2.metrics import (
+from evaluation.leakage_safe.metrics import (
     binary_relevance_metrics,
     intra_list_diversity,
     mean_dicts,
@@ -251,7 +251,7 @@ def run_retrieval_evaluation(
         per_case.append(case_record)
 
     return {
-        "protocol": "evaluation_v2 temporal leave-target-out retrieval",
+        "protocol": "evaluation.leakage_safe temporal leave-target-out retrieval",
         "split": split_name,
         "queries_evaluated": len(queries),
         "include_dense": include_dense,
@@ -269,7 +269,7 @@ def main() -> None:
     parser.add_argument("--include-dense", action="store_true", help="Run embedding baselines; may require model download/cache.")
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "retrieval_results.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "retrieval_results.json"),
     )
     args = parser.parse_args()
     result = run_retrieval_evaluation(

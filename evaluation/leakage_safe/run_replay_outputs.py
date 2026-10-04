@@ -15,9 +15,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from evaluation_v2.dataset import REPO_ROOT
-from evaluation_v2.replay import SYSTEMS, build_replay_cases
-from evaluation_v2.tracing import EvaluationTracer, TraceRecord, summarize_traces
+from evaluation.leakage_safe.dataset import REPO_ROOT
+from evaluation.leakage_safe.replay import SYSTEMS, build_replay_cases
+from evaluation.leakage_safe.tracing import EvaluationTracer, TraceRecord, summarize_traces
 
 
 def run_replay_outputs(
@@ -53,7 +53,7 @@ def run_replay_outputs(
             traces.append(tracer.record)
 
     return {
-        "protocol": "evaluation_v2 replay outputs",
+        "protocol": "evaluation.leakage_safe replay outputs",
         "mode": mode,
         "split": split_name,
         "cases": packet["cases"],
@@ -119,7 +119,7 @@ def main() -> None:
     parser.add_argument("--mode", default="deterministic", choices=["deterministic", "llm"])
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "replay_outputs.json"),
+        default=str(REPO_ROOT / "evaluation" / "leakage_safe" / "artifacts" / "replay_outputs.json"),
     )
     args = parser.parse_args()
     result = run_replay_outputs(
