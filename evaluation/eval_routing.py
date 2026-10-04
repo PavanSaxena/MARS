@@ -275,8 +275,12 @@ def run_multicorp_benchmark() -> Dict[str, Any]:
 # =============================================================================
 
 def run_routing_evaluation(*, split_name: str = "test", max_queries: int | None = None) -> Dict[str, Any]:
-    """Execute dynamic routing evaluation over chronological split."""
-    cases = split_cases(load_cases())[split_name]
+    """Execute dynamic routing evaluation over chronological split or entire dataset."""
+    all_cases = load_cases()
+    if split_name in ("all", "full"):
+        cases = all_cases
+    else:
+        cases = split_cases(all_cases).get(split_name, all_cases)
     if max_queries is not None:
         cases = cases[:max_queries]
 

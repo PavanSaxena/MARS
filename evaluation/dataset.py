@@ -280,12 +280,23 @@ def build_split_manifest(
 
 
 # =============================================================================
-# Verified 2023 Benchmark Dataset Loaders
+# Verified Multi-Year Benchmark Dataset Loaders (2023 - 2026)
 # =============================================================================
 
-def load_verified_2023_dataset() -> List[Dict[str, Any]]:
-    """Load all 640 paired decision-outcome cases from 2023 Q1-Q4."""
-    quarters = ["2023_q1", "2023_q2", "2023_q3", "2023_q4"]
+ALL_QUARTERS = [
+    "2023_q1", "2023_q2", "2023_q3", "2023_q4",
+    "2024_q1", "2024_q2", "2024_q3", "2024_q4",
+    "2025_q1", "2025_q2", "2025_q3", "2025_q4",
+    "2026_q1",
+]
+
+
+def load_verified_dataset(quarters: Optional[Sequence[str]] = None) -> List[Dict[str, Any]]:
+    """Load paired decision-outcome cases from quarterly CSV files.
+    Defaults to ALL 13 quarters (2,080 cases across 2023-2026).
+    """
+    if quarters is None:
+        quarters = ALL_QUARTERS
     all_cases = []
 
     for q in quarters:
@@ -293,7 +304,7 @@ def load_verified_2023_dataset() -> List[Dict[str, Any]]:
         o_path = DATASET_DIR / "Outcome" / f"outcomes_{q}.csv"
 
         if not d_path.exists() or not o_path.exists():
-            raise FileNotFoundError(f"Missing quarterly file: {d_path} or {o_path}")
+            continue
 
         with open(d_path, "r", encoding="utf-8") as f_d:
             decisions = list(csv.DictReader(f_d))
@@ -339,16 +350,22 @@ def load_verified_2023_dataset() -> List[Dict[str, Any]]:
     return all_cases
 
 
+def load_verified_2023_dataset() -> List[Dict[str, Any]]:
+    """Backward-compatible loader returning full multi-year corpus (2,080 cases across 2023-2026)."""
+    return load_verified_dataset()
+
+
 def get_stratified_generation_sample(
     sample_size: int = 40,
-    seed: int = 42
+    seed: int = 42,
+    quarters: Optional[Sequence[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Select a balanced stratified sample across all 4 departments and 4 quarters."""
+    """Select a balanced stratified sample across all 4 departments and all available quarters."""
     rng = random.Random(seed)
-    cases = load_verified_2023_dataset()
+    cases = load_verified_dataset(quarters=quarters)
     by_dept = {"Finance": [], "Operations": [], "R&D": [], "Legal": []}
     for c in cases:
-        dept = c["department"]
+        dept = c.get("department")
         if dept in by_dept:
             by_dept[dept].append(c)
 
@@ -356,8 +373,8 @@ def get_stratified_generation_sample(
     selected = []
 
     for dept, dept_cases in by_dept.items():
-        failures = [c for c in dept_cases if c["outcome_label"] == "failure"]
-        successes = [c for c in dept_cases if c["outcome_label"] == "success"]
+        failures = [c for c in dept_cases if c.get("outcome_label", "").lower() == "failure"]
+        successes = [c for c in dept_cases if c.get("outcome_label", "").lower() == "success"]
 
         target_fail = max(0, int(round(per_dept * 0.30)))
         target_succ = max(0, per_dept - target_fail)

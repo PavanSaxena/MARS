@@ -3,7 +3,7 @@
   "sample_size": 40,
   "generator_model": "ollama:qwen2.5:3b",
   "judge_model": "qwen/qwen3.8-27b",
-  "timestamp": "2026-09-20T19:09:30.383340+00:00",
+  "timestamp": "2026-10-04T18:13:28.065150+00:00",
   "dept_distribution": {
     "Operations": 10,
     "R&D": 10,

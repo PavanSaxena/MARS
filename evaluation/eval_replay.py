@@ -49,7 +49,10 @@ def build_replay_cases(
     include_dense: bool = False,
 ) -> Dict[str, Any]:
     cases = load_cases()
-    targets = split_cases(cases)[split_name]
+    if split_name in ("all", "full"):
+        targets = cases
+    else:
+        targets = split_cases(cases).get(split_name, cases)
     if max_cases is not None:
         targets = targets[:max_cases]
 

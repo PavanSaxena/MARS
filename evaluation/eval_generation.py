@@ -71,6 +71,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from evaluation.dataset import (
     get_stratified_generation_sample,
+    load_verified_dataset,
     load_verified_2023_dataset,
 )
 
@@ -449,7 +450,7 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 
     # Load corpus & build embeddings for Naive RAG + Citation verification set
     print("\nPre-computing corpus embeddings and indexing verified case IDs...")
-    corpus = load_verified_2023_dataset()
+    corpus = load_verified_dataset()
     valid_case_ids: Set[str] = {c.get("case_id", "") for c in corpus if c.get("case_id")}
     docs_text = [
         f"Decision Title: {d['decision_title']} Description: {d['decision_description']} "
@@ -468,6 +469,11 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
     systems = [g1, g2, mars]
 
     system_results: Dict[str, List[Dict[str, Any]]] = {s.NAME: [] for s in systems}
+    score_keys = [
+        "action_alignment", "conflict_awareness", "factual_grounding", "risk_foresight",
+        "composite", "semantic_similarity", "rougeL_f1", "citation_count",
+        "valid_citations_count", "citation_validity_rate", "latency_ms", "response_words"
+    ]
 
     out_dir = Path(__file__).resolve().parent / "results"
     out_dir.mkdir(exist_ok=True)
@@ -536,11 +542,6 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 
         # Save checkpoint after each case
         checkpoint_agg: Dict[str, Any] = {}
-        score_keys = [
-            "action_alignment", "conflict_awareness", "factual_grounding", "risk_foresight",
-            "composite", "semantic_similarity", "rougeL_f1", "citation_count",
-            "valid_citations_count", "citation_validity_rate", "latency_ms", "response_words"
-        ]
         for sys_name, case_scores in system_results.items():
             if case_scores:
                 agg = {k: round(float(np.mean([s[k] for s in case_scores])), 4) for k in score_keys}
@@ -550,7 +551,7 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 
         with open(partial_path, "w") as f:
             json.dump({
-                "benchmark": "MARS 2023 Dual Benchmark (Partial)",
+                "benchmark": "MARS Multi-Year Dual Benchmark (Partial)",
                 "sample_size": actual_n,
                 "completed": len(system_results[systems[0].NAME]),
                 "generator_model": GENERATION_MODEL,
@@ -589,12 +590,12 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
     for sys_name, agg in final_agg.items():
         print(
             f"{sys_name:<42} | {agg['semantic_similarity']:>11.3f} | {agg['rougeL_f1']:>8.3f} | "
-            f"{agg['citation_count']:>9.1f} | {agg['valid_citations_count']:>10.1f} | {agg['citation_validity_rate']*100:>9.1f}%"
+            f"{agg['citation_count']:>9.1f} | {agg['valid_citations_count']:>10.1f} | {agg['citation_validity_rate'] * 100:>9.1f}%"
         )
     print("=" * 105)
 
     results = {
-        "benchmark": "MARS 2023 Dual Benchmark (Empirical + Frontier)",
+        "benchmark": "MARS Multi-Year Dual Benchmark (2023-2026)",
         "sample_size": actual_n,
         "generator_model": GENERATION_MODEL,
         "judge_model": FRONTIER_JUDGE_MODEL,

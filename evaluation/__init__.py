@@ -32,6 +32,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 from evaluation.dataset import (
     CaseRecord,
     load_cases,
+    load_verified_dataset,
     load_verified_2023_dataset,
     get_stratified_generation_sample,
     split_cases,

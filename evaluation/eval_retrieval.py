@@ -38,6 +38,7 @@ from evaluation.dataset import (
     CaseRecord,
     decision_text,
     load_cases,
+    load_verified_dataset,
     load_verified_2023_dataset,
     replay_query_text,
     split_cases,
@@ -579,15 +580,16 @@ def run_retrieval_evaluation(
     return result
 
 
-def run_retrieval_benchmark() -> Dict[str, Any]:
-    """Execute full BEIR / RAGChecker retrieval benchmark on 2023 dataset."""
+def run_retrieval_benchmark(corpus: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Execute full BEIR / RAGChecker retrieval benchmark on dataset."""
+    if corpus is None:
+        corpus = load_verified_dataset()
+    N = len(corpus)
     print("=" * 80)
-    print("RUNNING TIME-SAFE RETRIEVAL BENCHMARK ON 2023 DATASET (640 CASES)")
+    print(f"RUNNING TIME-SAFE RETRIEVAL BENCHMARK ON FULL CORPUS ({N} CASES)")
     print("Literature Standard: Thakur et al. (BEIR NeurIPS 2021) & Ru et al. (NeurIPS 2024)")
     print("=" * 80)
 
-    corpus = load_verified_2023_dataset()
-    N = len(corpus)
     print(f"Loaded {N} decision cases. Computing embeddings...")
 
     docs_text = [
@@ -635,7 +637,7 @@ def run_retrieval_benchmark() -> Dict[str, Any]:
     res_mars = evaluate_retriever("MARS: Hybrid + MMR + Cross-Dept", call_mars, corpus, corpus)
 
     results = {
-        "benchmark": "MARS 2023 Retrieval Benchmark",
+        "benchmark": "MARS Multi-Year Retrieval Benchmark (2023-2026)",
         "dataset_size": N,
         "metrics": [res_bm25, res_dense, res_mars],
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),

@@ -373,9 +373,9 @@
         "mean_tool_calls": 0.0,
         "mean_active_agents": 0.0,
         "mean_skipped_agents": 4.0,
-        "latency_p50_ms": 0.0006,
-        "latency_p95_ms": 0.0066,
-        "latency_p99_ms": 0.0066
+        "latency_p50_ms": 0.0007,
+        "latency_p95_ms": 0.0061,
+        "latency_p99_ms": 0.0061
       },
       "naive_bm25_rag": {
         "cases": 10,
@@ -388,8 +388,8 @@
         "mean_active_agents": 1.0,
         "mean_skipped_agents": 3.0,
         "latency_p50_ms": 0.0024,
-        "latency_p95_ms": 0.0161,
-        "latency_p99_ms": 0.0161
+        "latency_p95_ms": 0.0162,
+        "latency_p99_ms": 0.0162
       },
       "hybrid_rag_optional_dense": {
         "cases": 10,
@@ -402,8 +402,8 @@
         "mean_active_agents": 1.0,
         "mean_skipped_agents": 3.0,
         "latency_p50_ms": 0.0021,
-        "latency_p95_ms": 0.0071,
-        "latency_p99_ms": 0.0071
+        "latency_p95_ms": 0.0063,
+        "latency_p99_ms": 0.0063
       },
       "static_multi_agent_context": {
         "cases": 10,
@@ -415,9 +415,9 @@
         "mean_tool_calls": 0.0,
         "mean_active_agents": 4.0,
         "mean_skipped_agents": 0.0,
-        "latency_p50_ms": 0.0068,
-        "latency_p95_ms": 0.0162,
-        "latency_p99_ms": 0.0162
+        "latency_p50_ms": 0.0061,
+        "latency_p95_ms": 0.0142,
+        "latency_p99_ms": 0.0142
       },
       "dynamic_mars_context": {
         "cases": 10,
@@ -429,9 +429,9 @@
         "mean_tool_calls": 0.0,
         "mean_active_agents": 2.9,
         "mean_skipped_agents": 1.1,
-        "latency_p50_ms": 0.005,
-        "latency_p95_ms": 0.0085,
-        "latency_p99_ms": 0.0085
+        "latency_p50_ms": 0.0047,
+        "latency_p95_ms": 0.0075,
+        "latency_p99_ms": 0.0075
       }
     }
   }
