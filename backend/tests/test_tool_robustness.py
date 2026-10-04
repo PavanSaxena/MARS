@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+# Ensure backend root is on sys.path so app imports work
+current_dir = Path(__file__).resolve().parent
+backend_root = current_dir.parent
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
 
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("mcp") is None,
@@ -14,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_tool_executor_rejects_unregistered_tool():
-    from backend.app.tools.tool_executor import execute_tool_call
+    from app.tools.tool_executor import execute_tool_call
 
     result = execute_tool_call("finance_agent", "ComplianceCheckerTool", {"query": "x"})
     assert result["status"] == "error"
@@ -22,7 +31,7 @@ def test_tool_executor_rejects_unregistered_tool():
 
 
 def test_tool_executor_wraps_mcp_exception(monkeypatch):
-    import backend.app.tools.tool_executor as tool_executor
+    import app.tools.tool_executor as tool_executor
 
     def boom(name, arguments):
         raise RuntimeError("synthetic timeout")
@@ -33,7 +42,7 @@ def test_tool_executor_wraps_mcp_exception(monkeypatch):
 
 
 def test_run_llm_with_tools_feeds_tool_error_back_to_model(monkeypatch):
-    import backend.app.agents.common as common
+    import app.agents.common as common
 
     class FakeBoundLLM:
         def invoke(self, prompt):

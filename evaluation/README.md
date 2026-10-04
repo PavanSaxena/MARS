@@ -1,40 +1,76 @@
-# MARS Evaluation v2
+# MARS Unified Evaluation Suite
 
-This package is the leakage-safe research evaluation layer for MARS. It does
-not replace the runtime system; it replaces the earlier research harnesses that
-allowed self-retrieval, simulated statistics, or future outcome exposure.
+Empirical evaluation and research benchmark suite for MARS (Multi-Agent Retrieval System).
 
-Core rules:
+## Directory Structure
 
-1. Split by `decision_date`, never by random row sampling.
-2. Retrieval for a replay case must exclude the target `case_id`.
-3. Retrieval must exclude decisions with `decision_date >= query decision_date`.
-4. Outcome text/labels may be used only when `observation_date <= query decision_date`.
-5. Paper tables must be generated from real per-case outputs, not simulated arrays.
-
-Initial manifest:
-
-```bash
-python3 -m evaluation.leakage_safe.build_manifests
+```
+evaluation/
+├── dataset.py                # Unified dataset loader, chronological splits & manifest generation
+├── eval_retrieval.py         # Retrieval evaluation (BEIR benchmark + leakage-safe temporal retrieval)
+├── eval_generation.py        # Generation quality evaluation (G-Eval rubric, RAGAS, ROUGE-1/2/L)
+├── eval_routing.py           # Department routing benchmark (temporal split + MultiCorp-QA 4 sectors)
+├── eval_calibration.py       # Confidence calibration, recency decay (Brier, ECE/MCE, conformal risk)
+├── eval_longitudinal.py      # Longitudinal out-of-sample backtesting (2023-2024 -> 2025-2026)
+├── eval_replay.py            # Historical decision replay packet generation & execution tracing
+├── run_benchmarks.py         # Master CLI runner orchestrating all benchmarks and audit
+├── metrics.py                # Relevance, diversity, and calibration metrics
+├── statistical_significance.py # Paired bootstrap hypothesis testing and Fleiss' Kappa
+├── tracing.py                # Runtime latency, agent invocation, and retrieval tracing
+├── artifacts/                # Generated evaluation manifests, JSON packets, and registries
+└── results/                  # Benchmark execution output JSONs and BENCHMARK_REPORT.md
 ```
 
-Quick combined audit:
+## Quick Start Commands
+
+### 1. Master Benchmark Runner
+Run any benchmark or the entire suite via `run_benchmarks.py`:
 
 ```bash
-backend/.venv/bin/python -m evaluation.leakage_safe.research_audit
+# Run one-command research audit (manifests, retrieval, calibration, routing, replay)
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode audit
+
+# Run retrieval benchmark (BEIR + RAGChecker standards)
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode retrieval
+
+# Run generation benchmark with judge LLM
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode generation --sample-size 40
+
+# Run cross-industry routing benchmark (MultiCorp-QA)
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode routing
+
+# Run out-of-sample longitudinal backtest
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode longitudinal
+
+# Run all benchmarks
+backend/.venv/bin/python -m evaluation.run_benchmarks --mode all
 ```
 
-Protocol tests:
+### 2. Individual Component Runners
+Each `eval_*.py` module can also be executed directly:
 
 ```bash
-backend/.venv/bin/pytest -q evaluation/leakage_safe/test_protocol.py evaluation_v2/test_tool_robustness.py
+# Temporal retrieval evaluation
+backend/.venv/bin/python -m evaluation.eval_retrieval --mode leakage_safe --split test
+
+# Confidence calibration evaluation
+backend/.venv/bin/python -m evaluation.eval_calibration --k 10
+
+# MultiCorp-QA cross-industry benchmark
+backend/.venv/bin/python -m evaluation.eval_routing --mode multicorp
+
+# Longitudinal backtest
+backend/.venv/bin/python -m evaluation.eval_longitudinal
+
+# Replay packet generation
+backend/.venv/bin/python -m evaluation.eval_replay --mode packet --split test --max-cases 25
 ```
 
-See `EXPERIMENT_PLAN.md` for the paper-oriented experiment matrix and
-acceptance criteria.
-
-Replay outputs and trace smoke test:
+### 3. Unit and Protocol Tests
+Integration and protocol-level tests are located in `backend/tests/`:
 
 ```bash
-backend/.venv/bin/python -m evaluation.leakage_safe.run_replay_outputs --split validation --max-cases 25
+backend/.venv/bin/pytest backend/tests/test_protocol.py backend/tests/test_tool_robustness.py
+backend/.venv/bin/python -m unittest backend/tests/test_confidence_reasoning.py
+backend/.venv/bin/python backend/tests/run_tier1_benchmarks.py
 ```

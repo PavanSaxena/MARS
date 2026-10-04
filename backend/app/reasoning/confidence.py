@@ -4,7 +4,14 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.reasoning.outcome_analysis import analyze_outcomes
-from app.reasoning.similarity import compute_similarity
+
+
+def compute_similarity(cases: List[dict]) -> float:
+    """Compute average similarity score across retrieved cases (1 - cosine distance)."""
+    if not cases:
+        return 0.0
+    scores = [1.0 - case.get("distance", 1.0) for case in cases]
+    return sum(scores) / len(scores)
 
 # Default multi-factor weights (per CBR decision support specification):
 # - 45% Case Relevance (vector similarity)
@@ -285,4 +292,41 @@ def calculate_confidence(
 
     composite = (w1 * sim_score) + (w2 * rec_score) + (w3 * succ_score)
     return round(max(0.0, min(1.0, composite)), 4)
+
+
+def generate_explanation(
+    cases: List[dict],
+    confidence: Optional[float],
+    tools_used: Optional[List[str]] = None,
+    reported_confidence: Optional[float] = None,
+) -> str:
+    """Generate a human-readable explanation of retrieval, tool use, and confidence."""
+    confidence_text = f"{confidence:.2f}" if isinstance(confidence, (int, float)) else "0.00"
+    tools_text = f"Tools consulted: {', '.join(tools_used)}." if tools_used else "No tools were called."
+
+    if not cases:
+        return (
+            "No relevant historical cases found in the dataset for this query.\n"
+            f"Case-based confidence: {confidence_text}.\n"
+            f"{tools_text}"
+        )
+
+    if reported_confidence == 0.0:
+        return (
+            "Historical cases were retrieved from the dataset but were not "
+            "sufficiently relevant to this query to support a grounded recommendation. "
+            "No evidence was used in this agent's output.\n"
+            f"Case-based confidence: {confidence_text}.\n"
+            f"{tools_text}"
+        )
+
+    outcomes = [c.get("outcome", "unknown") for c in cases if c.get("outcome")]
+    outcome_summary = ", ".join(set(outcomes)) if outcomes else "None recorded"
+
+    return (
+        f"Found {len(cases)} relevant historical case(s).\n"
+        f"Historical outcomes observed: {outcome_summary}.\n"
+        f"Case-based confidence: {confidence_text}.\n"
+        f"{tools_text}"
+    )
 

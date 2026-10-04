@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
+
+# Add backend and MARS root
+current_dir = Path(__file__).resolve().parent
+backend_root = current_dir.parent
+mars_root = backend_root.parent
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
+if str(mars_root) not in sys.path:
+    sys.path.insert(0, str(mars_root))
+
 from evaluation.dataset import load_cases, split_cases, visible_corpus
-from evaluation.replay import build_replay_cases
-from evaluation.retrieval import run_retrieval_evaluation
+from evaluation.eval_replay import build_replay_cases
+from evaluation.eval_retrieval import run_retrieval_evaluation
 
 
 def test_visible_corpus_excludes_target_and_future_decisions():
@@ -43,4 +56,3 @@ def test_replay_packet_smoke_has_no_leakage():
         for system in ["naive_bm25_rag", "hybrid_rag_optional_dense"]:
             ids = {doc["case_id"] for doc in case["systems"][system]["retrieved_cases"]}
             assert case["case_id"] not in ids
-
