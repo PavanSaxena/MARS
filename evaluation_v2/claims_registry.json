@@ -16,6 +16,11 @@
       "required_evidence": ["no target-outcome leakage", "held-out future test set", "Brier/NLL/ECE/MCE/reliability diagrams"]
     },
     {
+      "claim": "Query-adaptive dynamic weighting improves confidence quality.",
+      "current_status": "partially supported: full test ablation improves ECE/MCE trade-off but does not beat static default on Brier/NLL",
+      "required_evidence": ["report static vs registry vs dynamic ablation", "include gain sweep", "avoid claiming universal calibration improvement"]
+    },
+    {
       "claim": "Temporal recency weighting improves future performance.",
       "current_status": "unproven",
       "required_evidence": ["lambda grid selected on validation only", "future test comparison against lambda=0"]

@@ -7,21 +7,20 @@ from app.state import State
 def _confidence_value(output: dict) -> float:
     """
     Extract the effective confidence for ranking.
-    Prioritizes calibrated multi-factor case_based_confidence (empirical),
-    falling back to self-reported LLM confidence if not present.
+    Uses calibrated multi-factor empirical confidence.
     """
     case_conf = (output or {}).get("case_based_confidence")
     if isinstance(case_conf, (int, float)):
         return float(case_conf)
-    llm_conf = (output or {}).get("confidence")
-    return float(llm_conf) if isinstance(llm_conf, (int, float)) else 0.0
+    conf = (output or {}).get("confidence")
+    return float(conf) if isinstance(conf, (int, float)) else 0.0
 
 
 def _fmt_department(name: str, output: dict) -> str:
     if not output:
         return f"--- {name} Assessment ---\n(Scoped out by dynamic router — not required for this query)"
 
-    case_based_confidence = output.get("case_based_confidence")
+    case_based_confidence = output.get("case_based_confidence", output.get("confidence", 0.0))
     case_based_text = (
         f"{case_based_confidence:.2f}"
         if isinstance(case_based_confidence, (int, float))
@@ -34,9 +33,6 @@ def _fmt_department(name: str, output: dict) -> str:
     succ_rate = output.get("historical_success_rate")
     succ_text = f"{succ_rate:.1%}" if isinstance(succ_rate, (int, float)) else "N/A"
 
-    reported_conf = output.get("confidence")
-    reported_text = f"{reported_conf:.2f}" if isinstance(reported_conf, (int, float)) else "0.00"
-
     conformal = output.get("conformal_bound") or {}
     ci = conformal.get("confidence_interval")
     conformal_line = ""
@@ -44,12 +40,19 @@ def _fmt_department(name: str, output: dict) -> str:
         policy = conformal.get("decision_policy", "N/A")
         conformal_line = f"\nConformal 95% Bound: [{ci[0]:.2f}, {ci[1]:.2f}] (Policy: {policy})"
 
+    dyn_w = output.get("dynamic_weights")
+    weights_line = ""
+    if dyn_w and len(dyn_w) == 3:
+        rationale = output.get("weight_rationale", "")
+        weights_line = f"\nDynamic Query-Conditioned Weights: [Sim={dyn_w[0]:.2f}, Rec={dyn_w[1]:.2f}, Succ={dyn_w[2]:.2f}]"
+        if rationale:
+            weights_line += f" ({rationale})"
+
     return (
         f"--- {name} Assessment ---\n"
         f"Response: {output.get('response', 'N/A')}\n"
         f"Reasoning: {output.get('reasoning', 'N/A')}\n"
-        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}\n"
-        f"LLM Self-Reported Confidence: {reported_text}\n"
+        f"Empirical Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}{weights_line}\n"
         f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}"
     )
 

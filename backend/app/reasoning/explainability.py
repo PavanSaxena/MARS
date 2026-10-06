@@ -6,6 +6,7 @@ def generate_explanation(
     confidence: Optional[float],
     tools_used: Optional[List[str]] = None,
     reported_confidence: Optional[float] = None,
+    weight_rationale: Optional[str] = None,
 ) -> str:
     """
     Generate a human-readable explanation of the retrieval, tool-use, and
@@ -28,24 +29,14 @@ def generate_explanation(
         if tools_used
         else "No tools were called."
     )
+    weights_line = f"\nWeight Allocation: {weight_rationale}" if weight_rationale else ""
 
-    # Situation 1 — the retriever found nothing at all.
-    if not cases:
+    # Situation 1 — the retriever found nothing at all or confidence is 0.
+    if not cases or (confidence is not None and confidence <= 0.0):
         return (
             "No relevant historical cases found in the dataset for this query.\n"
             f"Case-based confidence: {confidence_text}.\n"
-            f"{tools_text}"
-        )
-
-    # Situation 3 — cases were retrieved but the agent judged none useful.
-    # Don't surface the cases; just explain that no evidence was used.
-    if reported_confidence == 0.0:
-        return (
-            "Historical cases were retrieved from the dataset but were not "
-            "sufficiently relevant to this query to support a grounded recommendation. "
-            "No evidence was used in this agent's output.\n"
-            f"Case-based confidence: {confidence_text}.\n"
-            f"{tools_text}"
+            f"{tools_text}{weights_line}"
         )
 
     # Situation 2 — normal grounded path.
@@ -56,5 +47,6 @@ def generate_explanation(
         f"Found {len(cases)} relevant historical case(s).\n"
         f"Historical outcomes observed: {outcome_summary}.\n"
         f"Case-based confidence: {confidence_text}.\n"
-        f"{tools_text}"
+        f"{tools_text}{weights_line}"
     )
+

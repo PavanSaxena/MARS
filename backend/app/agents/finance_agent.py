@@ -43,8 +43,7 @@ def finance_agent(state: State) -> Dict[str, Any]:
         rules=[
             "Ground all financial analysis strictly in the retrieved historical cases",
             "Do NOT fabricate financial figures, budgets, VAT models, or ROI estimates without dataset evidence",
-            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
-            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
+            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.'",
         ],
         query=query,
         case_text=case_text,
@@ -55,7 +54,7 @@ def finance_agent(state: State) -> Dict[str, Any]:
         get_llm(state.get("model")), prompt, tools, agent_name="finance_agent"
     )
     parsed_output = parse_finance_output(content)
-    parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
+    parsed_output.update(build_case_evidence(cases, tools_used, query=query, department="finance"))
     if warnings:
         parsed_output["warnings"] = warnings
 

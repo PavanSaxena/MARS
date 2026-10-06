@@ -38,3 +38,15 @@ Replay outputs and trace smoke test:
 ```bash
 backend/.venv/bin/python -m evaluation_v2.run_replay_outputs --split validation --max-cases 25
 ```
+
+Dynamic weighting ablation:
+
+```bash
+backend/.venv/bin/python -m evaluation_v2.dynamic_weighting_ablation --split validation --max-cases 50
+```
+
+Dynamic weighting gain sweep:
+
+```bash
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation_v2.dynamic_weighting_gain_sweep --split test
+```

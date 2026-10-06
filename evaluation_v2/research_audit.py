@@ -9,6 +9,7 @@ from pathlib import Path
 from evaluation_v2.build_manifests import main as _manifest_main
 from evaluation_v2.calibration import run_calibration_evaluation
 from evaluation_v2.dataset import REPO_ROOT, build_split_manifest, load_cases
+from evaluation_v2.dynamic_weighting_ablation import run_dynamic_weighting_ablation
 from evaluation_v2.retrieval import run_retrieval_evaluation
 from evaluation_v2.routing import run_routing_evaluation
 from evaluation_v2.run_replay_outputs import run_replay_outputs
@@ -36,6 +37,11 @@ def run_research_audit(*, quick: bool = True) -> dict:
         k=5,
         mode="deterministic",
     )
+    dynamic_weighting = run_dynamic_weighting_ablation(
+        split_name="validation" if quick else "test",
+        max_cases=50 if quick else None,
+        k=10,
+    )
     result = {
         "mode": "quick" if quick else "full",
         "manifest_summary": {
@@ -59,6 +65,21 @@ def run_research_audit(*, quick: bool = True) -> dict:
                 "Deterministic replay outputs are protocol/tracing smoke tests, "
                 "not final LLM quality evidence."
             ),
+        },
+        "dynamic_weighting_ablation": {
+            "cases": dynamic_weighting["cases"],
+            "winner_by_brier": dynamic_weighting["winner_by_brier"],
+            "winner_by_nll": dynamic_weighting["winner_by_nll"],
+            "metrics": {
+                name: {
+                    "brier": scores["brier"],
+                    "nll": scores["nll"],
+                    "ece": scores["ece"],
+                    "mce": scores["mce"],
+                }
+                for name, scores in dynamic_weighting["metrics"].items()
+            },
+            "guardrail": dynamic_weighting["interpretation_guardrail"],
         },
     }
     (output_dir / "research_audit_summary.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

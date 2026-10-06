@@ -42,8 +42,7 @@ def legal_agent(state: State) -> Dict[str, Any]:
         rules=[
             "Ground all legal risk and compliance assessments strictly in the retrieved historical cases",
             "Do NOT fabricate regulatory guidance, Directives, or compliance steps without dataset evidence",
-            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
-            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
+            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.'",
         ],
         query=query,
         case_text=case_text,
@@ -54,7 +53,7 @@ def legal_agent(state: State) -> Dict[str, Any]:
         get_llm(state.get("model")), prompt, tools, agent_name="legal_agent"
     )
     parsed_output = parse_structured_output(content)
-    parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
+    parsed_output.update(build_case_evidence(cases, tools_used, query=query, department="legal"))
     if warnings:
         parsed_output["warnings"] = warnings
 

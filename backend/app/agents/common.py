@@ -3,7 +3,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
-from app.reasoning.confidence import calculate_confidence
+from app.reasoning.confidence import calculate_confidence, calculate_confidence_with_details
 from app.reasoning.explainability import generate_explanation
 from app.reasoning.outcome_analysis import analyze_outcomes
 from app.reasoning.similarity import compute_similarity
@@ -122,28 +122,29 @@ def build_case_evidence(
     cases: List[dict],
     tools_used: Optional[List[str]] = None,
     reported_confidence: Optional[float] = None,
+    query: Optional[str] = None,
+    department: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Compute retrieval-side stats for the retrieved cases and attach a
     calibrated multi-factor case_based_confidence (see app.reasoning.confidence).
 
+    Dynamically incorporates Query-Adaptive Weighting conditioned on the query
+    and the specialist agent's domain mandate.
+
     Returns a dict meant to be merged into an agent's output, e.g.:
-        parsed_output.update(build_case_evidence(cases, tools_used, reported_confidence=parsed_output.get("confidence")))
+        parsed_output.update(build_case_evidence(cases, tools_used, query=query, department="finance"))
     """
     similarity = compute_similarity(cases)
     success_rate = analyze_outcomes(cases)
 
     # Only surface cases the agent actually considered useful for its answer.
-    # When the agent reports confidence 0.0 it means it looked at the retrieved
-    # records and decided none were relevant enough to ground a recommendation.
-    # Showing those cases in the frontend would be misleading — it would imply
-    # they informed the decision when they explicitly did not.
-    agent_used_cases = (reported_confidence is None or reported_confidence > 0.0) and bool(cases)
+    agent_used_cases = bool(cases) and similarity > 0.0
 
-    case_based_confidence = (
-        calculate_confidence(cases=cases)
+    case_based_confidence, weight_info = (
+        calculate_confidence_with_details(cases=cases, query=query, department=department)
         if agent_used_cases
-        else 0.0
+        else (0.0, {})
     )
 
     num_cases = len(cases) if agent_used_cases else 0
@@ -172,11 +173,17 @@ def build_case_evidence(
         cases_count=num_cases
     )
 
+    final_conf = round(case_based_confidence, 4) if agent_used_cases else 0.0
+
     return {
         "num_cases_retrieved": num_cases,
         "avg_similarity": round(similarity, 4) if agent_used_cases else None,
         "historical_success_rate": round(success_rate, 4) if agent_used_cases else None,
-        "case_based_confidence": round(case_based_confidence, 4) if agent_used_cases else 0.0,
+        "confidence": final_conf,
+        "case_based_confidence": final_conf,
+        "dynamic_weights": weight_info.get("weights"),
+        "weight_rationale": weight_info.get("rationale"),
+        "weight_telemetry": weight_info,
         "conformal_bound": {
             "confidence_interval": list(conformal_bound.confidence_interval),
             "coverage_guarantee": conformal_bound.coverage_guarantee,
@@ -191,6 +198,7 @@ def build_case_evidence(
             case_based_confidence,
             tools_used,
             reported_confidence=reported_confidence,
+            weight_rationale=weight_info.get("rationale"),
         ),
     }
 
@@ -240,18 +248,14 @@ GROUNDING AND PRECEDENT DIRECTIVES:
    - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
      {{
        "response": "No historical evidences/decisions found.",
-       "reasoning": "No historical cases were retrieved from the dataset for this query. Without prior historical precedent, no evidence-grounded recommendation can be provided.",
-       "confidence": 0.0
+       "reasoning": "No historical cases were retrieved from the dataset for this query. Without prior historical precedent, no evidence-grounded recommendation can be provided."
      }}
    - If cases ARE present above, you MUST use them as precedents rather than returning "No historical evidences/decisions found".
-4. Confidence Score:
-   - Set "confidence" between 0.0 and 1.0 reflecting the relevance and historical success rate of the retrieved cases.
 
 Return ONLY valid JSON with this schema:
 {{
   "response": "string",
-  "reasoning": "string",
-  "confidence": 0.0
+  "reasoning": "string"
 }}
 
 Rules:

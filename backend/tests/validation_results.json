@@ -154,14 +154,14 @@
   "section_6_end_to_end_distinction": {
     "skipped_has_explicit_scoped_out_label": true,
     "no_evidence_has_zero_cases_and_confidence": true,
-    "low_conf_distinguishes_low_similarity_and_failure": true,
+    "low_conf_distinguishes_low_similarity_and_failure": false,
     "all_three_states_are_distinct": true
   },
   "section_7_performance_benchmark": {
     "iterations_measured": 50,
-    "router_median_latency_ms": 9.86,
-    "router_p95_latency_ms": 10.77,
-    "router_p99_latency_ms": 244.6,
+    "router_median_latency_ms": 10.09,
+    "router_p95_latency_ms": 10.68,
+    "router_p99_latency_ms": 13.09,
     "sparse_vs_all_agent_llm_call_reduction": "50.0% (for 2-dept query) to 75.0% (for 1-dept query)"
   },
   "bugs_found": [],
