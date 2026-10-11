@@ -356,7 +356,13 @@
     "micro_f1": 0.5333333333333333,
     "exact_match_rate": 0.0,
     "avg_active_departments": 1.04,
-    "estimated_agent_call_reduction_vs_static": 0.74
+    "estimated_agent_call_reduction_vs_static": 0.74,
+    "latency_ms": {
+      "p50": 17.7022,
+      "p95": 20.2059,
+      "p99": 382.9661,
+      "mean": 26.6914
+    }
   },
   "replay_output_summary": {
     "mode": "deterministic",
@@ -433,6 +439,33 @@
         "latency_p95_ms": 0.0075,
         "latency_p99_ms": 0.0075
       }
-    }
+    },
+    "note": "Deterministic replay outputs are protocol/tracing smoke tests, not final LLM quality evidence."
+  },
+  "dynamic_weighting_ablation": {
+    "cases": 50,
+    "winner_by_brier": "query_adaptive_dynamic",
+    "winner_by_nll": "query_adaptive_dynamic",
+    "metrics": {
+      "static_default": {
+        "brier": 0.287138,
+        "nll": 0.769138,
+        "ece": 0.279437,
+        "mce": 0.376423
+      },
+      "registry_prior": {
+        "brier": 0.280424,
+        "nll": 0.75499,
+        "ece": 0.267832,
+        "mce": 0.632049
+      },
+      "query_adaptive_dynamic": {
+        "brier": 0.276343,
+        "nll": 0.747464,
+        "ece": 0.263311,
+        "mce": 0.325578
+      }
+    },
+    "guardrail": "This ablation evaluates confidence calibration only. Advisory quality still requires decision replay scoring and human/expert evaluation."
   }
 }

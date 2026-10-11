@@ -51,7 +51,14 @@ class _MCPClientThread:
         # Spawns `python -m app.mcp.server` as a child process and talks to
         # it over stdio — the standard MCP transport for an in-process
         # server that doesn't need to be reachable over the network.
-        server_params = StdioServerParameters(command=sys.executable, args=["-m", "app.mcp.server"])
+        import os
+        from pathlib import Path
+        backend_dir = str(Path(__file__).resolve().parent.parent.parent)
+        env = dict(os.environ)
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{backend_dir}:{existing_pp}" if existing_pp else backend_dir
+
+        server_params = StdioServerParameters(command=sys.executable, args=["-m", "app.mcp.server"], env=env)
         self._stop_event = asyncio.Event()
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:

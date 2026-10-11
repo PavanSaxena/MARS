@@ -24,7 +24,7 @@ def _fmt_department(name: str, output: dict) -> str:
     if not output:
         return f"--- {name} Assessment ---\n(Scoped out by dynamic router — not required for this query)"
 
-    case_based_confidence = output.get("case_based_confidence")
+    case_based_confidence = output.get("case_based_confidence", output.get("confidence", 0.0))
     case_based_text = (
         f"{case_based_confidence:.2f}"
         if isinstance(case_based_confidence, (int, float))
@@ -56,11 +56,19 @@ def _fmt_department(name: str, output: dict) -> str:
         policy = conformal.get("decision_policy", "N/A")
         conformal_line = f"\nConformal 95% Bound: [{ci[0]:.2f}, {ci[1]:.2f}] (Policy: {policy})"
 
+    dyn_w = output.get("dynamic_weights")
+    weights_line = ""
+    if dyn_w and len(dyn_w) == 3:
+        rationale = output.get("weight_rationale", "")
+        weights_line = f"\nDynamic Query-Conditioned Weights: [Sim={dyn_w[0]:.2f}, Rec={dyn_w[1]:.2f}, Succ={dyn_w[2]:.2f}]"
+        if rationale:
+            weights_line += f" ({rationale})"
+
     return (
         f"--- {name} Assessment ---\n"
         f"Response: {output.get('response', 'N/A')}\n"
         f"Reasoning: {output.get('reasoning', 'N/A')}\n"
-        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}\n"
+        f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}{weights_line}\n"
         f"LLM Self-Reported Confidence: {reported_text}\n"
         f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}\n"
         f"Retrieved Case IDs: {case_ids_text}"
@@ -78,35 +86,36 @@ def aggregator_agent(state: State) -> Dict:
     """
     departments: List[Tuple[str, dict]] = [
         ("Finance", state.get("finance_output") or {}),
-        ("R&D", state.get("rd_output") or {}),
         ("Legal", state.get("legal_output") or {}),
         ("Operations", state.get("operations_output") or {}),
+        ("R&D", state.get("rd_output") or {}),
     ]
 
-    # Rank by calibrated case-based confidence, highest first
-    ranked = sorted(departments, key=lambda item: _confidence_value(item[1]), reverse=True)
+    priority = {"Legal": 0, "Finance": 1, "Operations": 2, "R&D": 3}
+    ranked = sorted(
+        departments,
+        key=lambda d: (-_confidence_value(d[1]), priority[d[0]]),
+    )
+
     ranked_summary = "\n".join(
-        f"{i+1}. {name} (Case-Based Confidence: {_confidence_value(output):.2f})"
-        for i, (name, output) in enumerate(ranked)
-        if output
-    ) or "No department outputs available."
+        f"{i+1}. {name}: Empirical Confidence = {_confidence_value(out):.2f}"
+        for i, (name, out) in enumerate(ranked)
+    )
 
-    for name, output in departments:
-        conf = _confidence_value(output)
-        n_cases = (output or {}).get("num_cases_retrieved", 0)
-        logger.info(f"[Aggregator] {name}: confidence={conf:.2f}, cases_retrieved={n_cases}")
+    assessments_block = "\n\n".join(
+        _fmt_department(name, out) for name, out in departments
+    )
 
-    assessments_block = "\n\n".join(_fmt_department(name, output) for name, output in departments)
+    query = state.get("problem_statement", "")
 
-    prompt = f"""
-You are a Strategic Decision-Making AI.
+    prompt = f"""You are the Master Strategic Aggregator in an evidence-grounded decision support system for multi-departmental corporate advisory.
 
-You have received assessments from four department agents. Your task is to synthesize
-them into a coherent, evidence-grounded strategic summary and decision.
+A user has submitted the following strategic problem:
+\"{query}\"
 
-ONE-PASS CROSS-EXAMINATION:
-- For every material proposal, identify the specific constraint, objection, or dependency stated by another department that bears on it. Name both departments and summarize the proposal and peer concern accurately.
-- Cross-examine in both directions where relevant; for example, consider how Legal constraints affect Finance or Operations proposals and how Finance or Operations constraints affect R&D proposals. Do not force a conflict when the assessments are compatible.
+The specialized departments have performed evidence-grounded analyses using historical precedent cases retrieved from the corporate decision repository.
+
+Synthesis Instructions:
 - Ground each proposal and peer concern in the case IDs cited in the relevant department reasoning. Keep the cited cases attached to the claims they support; do not treat a case ID alone as proof of a claim.
 - Classify each tension as a hard constraint, an evidence-backed risk, or a preference/cost trade-off when the assessments support that distinction.
 - For each tension, state whether the supplied evidence supports a resolution, a compromise, or leaves it unresolved. Give a compromise only when its steps are supported by department findings and precedents; otherwise state what remains unresolved.
@@ -139,9 +148,9 @@ CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
    - Under "Risk Foresight": Identify concrete downstream failure modes grounded in retrieved failure cases or explicit departmental findings. Pair each risk with a safeguard only when the evidence supports that safeguard; cite case IDs and label material evidence gaps.
    - Weight higher-confidence, evidence-backed departments more heavily.
    - Under "Recommended Strategic Plan & Action Roadmap": Give 2-3 ordered phases only when that sequence is supported by the assessments and cases. For each phase, state the concrete action and its supporting department/case IDs. Do not fabricate owners, budgets, dates, metrics, or dependencies; say when the dataset does not establish them.
-    - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.
+   - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.
 5. CITATION FORMATTING REQUIREMENT:
-    - Whenever citing precedent cases, ALWAYS use the EXACT bracketed case ID provided in the assessments, e.g., [AAPL-2023Q1-0001]. Never abbreviate, truncate, or hallucinate case numbers.
+   - Whenever citing precedent cases, ALWAYS use the EXACT bracketed case ID provided in the assessments, e.g., [AAPL-2023Q1-0001]. Never abbreviate, truncate, or hallucinate case numbers.
 
 Output Format (STRICT):
 Key Insights:
@@ -164,38 +173,16 @@ Final Decision:
     response = get_llm(state.get("model")).invoke(prompt)
 
     # Normalise content — Gemini returns a list of dicts, not a plain string.
-    from app.agents.common import _normalize_content
-    response_text = _normalize_content(getattr(response, "content", str(response)))
-    logger.info(f"[Aggregator] Synthesis complete ({len(response_text)} chars)")
-
-    explainability_lines = []
-    for name, output in departments:
-        if not output:
-            continue
-        explanation = output.get("explanation")
-        if explanation:
-            explainability_lines.append(f"[{name}]\n{explanation}")
-
-    explainability_block = (
-        "\n\nExplainability:\n" + "\n\n".join(explainability_lines)
-        if explainability_lines
-        else ""
-    )
-
-    final_output = f"{response_text}{explainability_block}"
-
-    # Collect retrieved cases per department so the API can surface them.
-    retrieved_cases_by_dept: dict = {}
-    for name, output in departments:
-        cases = (output or {}).get("retrieved_cases")
-        if cases:
-            retrieved_cases_by_dept[name] = cases
-
-    total_cases = sum(len(v) for v in retrieved_cases_by_dept.values())
-    logger.info(f"[Aggregator] Final output ready ({total_cases} total evidence cases across {len(retrieved_cases_by_dept)} departments)")
+    raw_content = response.content
+    if isinstance(raw_content, list):
+        final_text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw_content
+        )
+    else:
+        final_text = str(raw_content)
 
     return {
-        "final_output": final_output,
-        "retrieved_cases": retrieved_cases_by_dept,
-        "messages": state.get("messages", []) + [response],
+        "final_decision": final_text,
+        "messages": [response],
     }
