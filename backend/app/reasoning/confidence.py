@@ -7,10 +7,19 @@ from app.reasoning.outcome_analysis import analyze_outcomes
 
 
 def compute_similarity(cases: List[dict]) -> float:
-    """Compute average similarity score across retrieved cases (1 - cosine distance)."""
+    """Compute average similarity score across retrieved cases (1 - cosine distance or explicit similarity)."""
     if not cases:
         return 0.0
-    scores = [1.0 - case.get("distance", 1.0) for case in cases]
+    scores = []
+    for case in cases:
+        if "similarity" in case and case["similarity"] is not None:
+            scores.append(float(case["similarity"]))
+        elif "distance" in case and case["distance"] is not None:
+            scores.append(1.0 - float(case["distance"]))
+        elif "metadata" in case and isinstance(case.get("metadata"), dict) and "similarity" in case["metadata"]:
+            scores.append(float(case["metadata"]["similarity"]))
+        else:
+            scores.append(1.0 - float(case.get("distance", 1.0)))
     return sum(scores) / len(scores)
 
 # Default multi-factor weights (per CBR decision support specification):
@@ -212,6 +221,7 @@ def compute_recency(
 
 
 from app.reasoning.weight_registry import weight_registry
+from app.reasoning.dynamic_weighting import dynamic_weight_engine, DynamicWeightResult
 
 
 def calculate_confidence(
@@ -222,6 +232,7 @@ def calculate_confidence(
     department: Optional[str] = None,
     action_type: Optional[str] = None,
     weights: Optional[Tuple[float, float, float]] = None,
+    query: Optional[str] = None,
 ) -> float:
     """
     Multi-factor case-based confidence scoring for strategic decision advisory.
@@ -234,9 +245,12 @@ def calculate_confidence(
         - Recency:      decayed temporal freshness of retrieved cases in [0, 1]
         - PastSuccess:  historical empirical success rate of retrieved cases in [0, 1]
 
-    Dynamic Weight Selection:
-        If `weights` is not explicitly provided, the system dynamically queries the
-        persistent `weight_registry` for domain-tailored or action-specific calibrated weights.
+    Dynamic Query-Adaptive Weight Selection:
+        - If `weights` is explicitly provided, it is used as an override.
+        - If `query` is provided, dynamic weights (w1, w2, w3) are computed on the fly
+          conditioned on query intent (temporal urgency, risk stakes, precedent specificity)
+          and the agent's domain mandate.
+        - Otherwise, falls back to persistent calibrated domain registry weights.
 
     Args:
         similarity:    Precomputed average similarity (or computed from cases if None).
@@ -246,23 +260,76 @@ def calculate_confidence(
         department:    Optional department identifier to select domain weights.
         action_type:   Optional action type identifier to select action weights.
         weights:       Explicit (w_similarity, w_recency, w_past_success) override tuple.
+        query:         Optional user query string for dynamic query-conditioned weighting.
 
     Returns:
         Calibrated confidence float in [0.0, 1.0], rounded to 4 decimal places.
     """
-    # 1. Determine dynamic weights profile from persistent registry
-    selected_weights = weights
-    if not selected_weights:
-        dept_key = (department or "").lower().strip()
-        act_key = (action_type or "").lower().strip()
+    conf, _ = calculate_confidence_with_details(
+        similarity=similarity,
+        recency=recency,
+        past_success=past_success,
+        cases=cases,
+        department=department,
+        action_type=action_type,
+        weights=weights,
+        query=query,
+    )
+    return conf
 
-        # If not passed explicitly, attempt extraction from case metadata
-        if not dept_key and cases:
-            dept_key = str((cases[0].get("metadata") or {}).get("department", "")).lower().strip()
-        if not act_key and cases:
-            act_key = str((cases[0].get("metadata") or {}).get("risk_level", "")).lower().strip()
 
+def calculate_confidence_with_details(
+    similarity: Optional[float] = None,
+    recency: Optional[float] = None,
+    past_success: Optional[float] = None,
+    cases: Optional[List[Dict[str, Any]]] = None,
+    department: Optional[str] = None,
+    action_type: Optional[str] = None,
+    weights: Optional[Tuple[float, float, float]] = None,
+    query: Optional[str] = None,
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Computes calibrated confidence score alongside detailed dynamic weighting telemetry.
+    """
+    dept_key = (department or "").lower().strip()
+    act_key = (action_type or "").lower().strip()
+
+    if not dept_key and cases:
+        dept_key = str((cases[0].get("metadata") or {}).get("department", "")).lower().strip()
+    if not act_key and cases:
+        act_key = str((cases[0].get("metadata") or {}).get("risk_level", "")).lower().strip()
+
+    weight_info: Dict[str, Any] = {}
+
+    # 1. Determine dynamic weights profile
+    if weights:
+        selected_weights = weights
+        weight_info = {
+            "mode": "explicit_override",
+            "weights": list(selected_weights),
+            "rationale": "Explicit weight override provided.",
+        }
+    elif query and query.strip():
+        dyn_res: DynamicWeightResult = dynamic_weight_engine.compute_weights(
+            query=query, department=dept_key, action_type=act_key
+        )
+        selected_weights = dyn_res.weights
+        weight_info = {
+            "mode": "query_adaptive_dynamic",
+            "weights": list(selected_weights),
+            "w_similarity": dyn_res.w_similarity,
+            "w_recency": dyn_res.w_recency,
+            "w_past_success": dyn_res.w_past_success,
+            "query_signals": dyn_res.query_signals,
+            "rationale": dyn_res.rationale,
+        }
+    else:
         selected_weights = weight_registry.get_weights(department=dept_key, action_type=act_key)
+        weight_info = {
+            "mode": "registry_prior",
+            "weights": list(selected_weights),
+            "rationale": f"Persistent calibrated registry prior for department '{dept_key or 'default'}'.",
+        }
 
     w1, w2, w3 = selected_weights
     total_w = w1 + w2 + w3
@@ -273,7 +340,7 @@ def calculate_confidence(
 
     if cases is not None:
         if not cases:
-            return 0.0
+            return 0.0, weight_info
         if similarity is None:
             similarity = compute_similarity(cases)
         if recency is None:
@@ -288,10 +355,12 @@ def calculate_confidence(
 
     # If no similarity exists (zero retrieval), confidence is strictly 0.0
     if sim_score <= 0.0:
-        return 0.0
+        return 0.0, weight_info
 
     composite = (w1 * sim_score) + (w2 * rec_score) + (w3 * succ_score)
-    return round(max(0.0, min(1.0, composite)), 4)
+    final_conf = round(max(0.0, min(1.0, composite)), 4)
+    return final_conf, weight_info
+
 
 
 def generate_explanation(
@@ -299,16 +368,18 @@ def generate_explanation(
     confidence: Optional[float],
     tools_used: Optional[List[str]] = None,
     reported_confidence: Optional[float] = None,
+    weight_rationale: Optional[str] = None,
 ) -> str:
     """Generate a human-readable explanation of retrieval, tool use, and confidence."""
     confidence_text = f"{confidence:.2f}" if isinstance(confidence, (int, float)) else "0.00"
     tools_text = f"Tools consulted: {', '.join(tools_used)}." if tools_used else "No tools were called."
+    weights_line = f"\nWeight Allocation: {weight_rationale}" if weight_rationale else ""
 
-    if not cases:
+    if not cases or (confidence is not None and confidence <= 0.0):
         return (
             "No relevant historical cases found in the dataset for this query.\n"
             f"Case-based confidence: {confidence_text}.\n"
-            f"{tools_text}"
+            f"{tools_text}{weights_line}"
         )
 
     if reported_confidence == 0.0:
@@ -317,7 +388,7 @@ def generate_explanation(
             "sufficiently relevant to this query to support a grounded recommendation. "
             "No evidence was used in this agent's output.\n"
             f"Case-based confidence: {confidence_text}.\n"
-            f"{tools_text}"
+            f"{tools_text}{weights_line}"
         )
 
     outcomes = [c.get("outcome", "unknown") for c in cases if c.get("outcome")]
@@ -327,6 +398,6 @@ def generate_explanation(
         f"Found {len(cases)} relevant historical case(s).\n"
         f"Historical outcomes observed: {outcome_summary}.\n"
         f"Case-based confidence: {confidence_text}.\n"
-        f"{tools_text}"
+        f"{tools_text}{weights_line}"
     )
 

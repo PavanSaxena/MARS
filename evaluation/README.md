@@ -64,6 +64,12 @@ backend/.venv/bin/python -m evaluation.eval_longitudinal
 
 # Replay packet generation
 backend/.venv/bin/python -m evaluation.eval_replay --mode packet --split test --max-cases 25
+
+# Dynamic weighting ablation
+backend/.venv/bin/python -m evaluation.dynamic_weighting_ablation --split validation --max-cases 50
+
+# Dynamic weighting gain sweep
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation.dynamic_weighting_gain_sweep --split test
 ```
 
 ### 3. Unit and Protocol Tests
