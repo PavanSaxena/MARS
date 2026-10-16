@@ -99,32 +99,79 @@ FRONTIER_JUDGE_MODEL = "qwen/qwen3.8-27b"  # Groq — 27B, free tier, confirmed 
 _gen_llm_cache: Dict[str, Any] = {}
 _judge_llm_cache: Dict[str, Any] = {}
 
+
+def _get_groq_key() -> str:
+    """Return the Groq API key from the environment (set via backend/.env)."""
+    key = os.environ.get("GROQ_API_KEY", "")
+    if not key:
+        raise RuntimeError("GROQ_API_KEY is not set. Please add it to backend/.env.")
+    return key
+
 # Pre-initialise ROUGE scorer & sentence encoder
 rouge = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=True)
 encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def _get_gen_llm(model_id: str = GENERATION_MODEL):
-    """Return local generation LLM (Ollama)."""
+    """Return generation LLM (Ollama, Groq, or OpenRouter)."""
     if model_id not in _gen_llm_cache:
-        from langchain.chat_models import init_chat_model
-        kwargs = {}
-        if model_id.startswith("ollama:"):
-            kwargs["num_ctx"] = 8192
-        _gen_llm_cache[model_id] = init_chat_model(model_id, max_retries=3, **kwargs)
+        provider = model_id.split(":", 1)[0] if ":" in model_id else ""
+        model_name = model_id.split(":", 1)[1] if ":" in model_id else model_id
+
+        if provider == "openrouter":
+            from langchain_openai import ChatOpenAI
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+            _gen_llm_cache[model_id] = ChatOpenAI(
+                model=model_name,
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key,
+                max_retries=5,
+                temperature=0.2,
+            )
+        elif provider == "groq":
+            from langchain_openai import ChatOpenAI
+            api_key = _get_groq_key()
+            _gen_llm_cache[model_id] = ChatOpenAI(
+                model=model_name,
+                base_url="https://api.groq.com/openai/v1",
+                api_key=api_key,
+                max_retries=5,
+                temperature=0.2,
+                max_tokens=600,
+            )
+        elif provider == "ollama":
+            from langchain.chat_models import init_chat_model
+            _gen_llm_cache[model_id] = init_chat_model(model_id, num_ctx=8192, max_retries=3)
+        else:
+            from langchain.chat_models import init_chat_model
+            _gen_llm_cache[model_id] = init_chat_model(model_id, max_retries=3)
     return _gen_llm_cache[model_id]
 
 
 def _get_judge_llm(model_id: str = FRONTIER_JUDGE_MODEL):
-    """Return frontier judge LLM (Groq llama-3.3-70b via OpenAI-compatible API)."""
+    """Return frontier judge LLM (Groq or OpenRouter via OpenAI-compatible API)."""
     if model_id not in _judge_llm_cache:
         from langchain_openai import ChatOpenAI
+        provider = model_id.split(":", 1)[0] if ":" in model_id else ""
+        model_name = model_id.split(":", 1)[1] if ":" in model_id else model_id
+
+        if provider == "openrouter":
+            base_url = "https://openrouter.ai/api/v1"
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        elif provider == "groq" or not provider:
+            base_url = "https://api.groq.com/openai/v1"
+            api_key = _get_groq_key()
+        else:
+            base_url = "https://api.groq.com/openai/v1"
+            api_key = _get_groq_key()
+
         _judge_llm_cache[model_id] = ChatOpenAI(
-            model=model_id,
-            base_url="https://api.groq.com/openai/v1",
-            api_key=os.environ.get("GROQ_API_KEY", ""),
+            model=model_name,
+            base_url=base_url,
+            api_key=api_key,
             max_retries=6,
             temperature=0.0,
+            max_tokens=600,
         )
     return _judge_llm_cache[model_id]
 
@@ -144,6 +191,89 @@ def _normalize_content(content: Any) -> str:
     return str(content)
 
 
+class DailyRateLimitExceeded(Exception):
+    """Raised when an API provider's daily quota (TPD) is reached."""
+    pass
+
+
+def _is_daily_rate_limit(err: Any) -> bool:
+    s = str(err).lower()
+    return (
+        "tokens per day" in s
+        or "tpd" in s
+        or "daily" in s
+        or "requests per day" in s
+        or "limit 200000" in s
+        or "on tokens per day" in s
+    )
+
+
+def _is_invalid_key_error(err: Any) -> bool:
+    s = str(err).lower()
+    return "401" in s or "invalid api key" in s or "invalid_api_key" in s
+
+
+def _is_per_minute_rate_limit(err: Any) -> bool:
+    s = str(err).lower()
+    return (
+        ("429" in s or "rate_limit" in s or "too many" in s or "rate limit" in s)
+        and not _is_daily_rate_limit(err)
+    )
+
+
+def _extract_retry_wait(err: Any, default: float = 30.0) -> float:
+    s = str(err)
+    match = re.search(r"try again in (\d+(?:\.\d+)?)\s*(s|m|h)?", s, re.IGNORECASE)
+    if match:
+        val = float(match.group(1))
+        unit = (match.group(2) or "s").lower()
+        if unit == "m":
+            val *= 60
+        elif unit == "h":
+            val *= 3600
+        return max(val + 2.0, 5.0)
+    return default
+
+
+def _gen_invoke_with_retry(llm: Any, prompt: str, model_id: str = "") -> str:
+    """Invoke generator LLM, retrying on TPM/RPM limits, halting on daily limits.
+    Never returns default values. Raises DailyRateLimitExceeded on quota exhaustion.
+    """
+    tpm_attempt = 0
+    non_rate_attempts = 0
+
+    while True:
+        try:
+            resp = llm.invoke(prompt)
+            text = _normalize_content(getattr(resp, "content", str(resp))).strip()
+            if text and len(text) >= 20:
+                return text
+            non_rate_attempts += 1
+            if non_rate_attempts <= 3:
+                time.sleep(5)
+                continue
+            raise RuntimeError("Generator LLM returned empty response after 3 attempts.")
+        except DailyRateLimitExceeded:
+            raise
+        except Exception as e:
+            if _is_daily_rate_limit(e):
+                raise DailyRateLimitExceeded(str(e))
+            elif _is_invalid_key_error(e):
+                raise
+            elif _is_per_minute_rate_limit(e):
+                wait = _extract_retry_wait(e, default=30.0 + min(tpm_attempt * 15, 60))
+                print(f"\n    [Generator TPM Rate Limit] Waiting {wait:.1f}s before retry...\n", flush=True)
+                time.sleep(wait)
+                tpm_attempt += 1
+            else:
+                non_rate_attempts += 1
+                if non_rate_attempts <= 3:
+                    time.sleep(5)
+                else:
+                    raise
+
+
+
 # ---------------------------------------------------------------------------
 # Baseline G1: Zero-Shot LLM
 # ---------------------------------------------------------------------------
@@ -151,6 +281,9 @@ class ZeroShotLLMSystem:
     """Baseline G1: No retrieval. Direct prompt to LLM (Robertson & Zaragoza 2009; Liu et al. 2023)."""
 
     NAME = "Baseline G1: Zero-Shot LLM"
+
+    def __init__(self, model: str = GENERATION_MODEL):
+        self.model = model
 
     def run(self, case: Dict[str, Any]) -> str:
         prompt = (
@@ -166,9 +299,8 @@ class ZeroShotLLMSystem:
             "3. Cross-departmental impacts\n"
             "Keep your response concise and actionable."
         )
-        llm = _get_gen_llm(GENERATION_MODEL)
-        resp = llm.invoke(prompt)
-        return _normalize_content(getattr(resp, "content", str(resp))).strip()
+        llm = _get_gen_llm(self.model)
+        return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
 # ---------------------------------------------------------------------------
@@ -179,9 +311,10 @@ class NaiveRAGSystem:
 
     NAME = "Baseline G2: Naive RAG"
 
-    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray):
+    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL):
         self.corpus = corpus
         self.corpus_embeddings = corpus_embeddings
+        self.model = model
 
     def _retrieve(self, case: Dict[str, Any], k: int = 5) -> List[Dict[str, Any]]:
         query = (
@@ -220,9 +353,8 @@ class NaiveRAGSystem:
             "3. Cross-departmental impacts\n"
             "Keep your response concise and actionable."
         )
-        llm = _get_gen_llm(GENERATION_MODEL)
-        resp = llm.invoke(prompt)
-        return _normalize_content(getattr(resp, "content", str(resp))).strip()
+        llm = _get_gen_llm(self.model)
+        return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
 # ---------------------------------------------------------------------------
@@ -233,22 +365,31 @@ class MARSSystem:
 
     NAME = "MARS: Multi-Agent Hybrid + MMR + Cross-Dept"
 
+    def __init__(self, model: str = GENERATION_MODEL):
+        self.model = model
+
     def run(self, case: Dict[str, Any]) -> str:
         from app.agents.master_agent import run_graph
 
         user_input = (
+            f"Evaluate the strategic decision and provide recommendations:\n"
             f"Department: {case.get('department', '')}\n"
             f"Decision: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
             f"Context: {case.get('situation_context', '')}"
         )
 
-        for attempt in range(2):
+        tpm_attempt = 0
+        non_rate_attempts = 0
+
+        while True:
             try:
                 result = run_graph(
                     user_input=user_input,
-                    thread_id=f"dual_eval_{case.get('case_id', 'default')}_{attempt}",
-                    model=GENERATION_MODEL,
+                    thread_id=f"dual_eval_{case.get('case_id', 'default')}_{tpm_attempt}_{non_rate_attempts}",
+                    model=self.model,
+                    force_pipeline=True,
+                    raise_on_rate_limit=True,
                 )
                 if isinstance(result, tuple):
                     text = str(result[0])
@@ -256,14 +397,47 @@ class MARSSystem:
                     text = result.get("output", result.get("response", str(result)))
                 else:
                     text = str(result)
-                return _normalize_content(text).strip()
+                text = _normalize_content(text).strip()
+
+                if "### ⚠️ Provider Rate Limit Reached" in text or "Rate limit reached" in text:
+                    if _is_daily_rate_limit(text):
+                        raise DailyRateLimitExceeded(text)
+                    wait = _extract_retry_wait(text, default=30.0 + min(tpm_attempt * 15, 60))
+                    print(f"\n    [MARS TPM Rate Limit in output] Waiting {wait:.1f}s before retry...\n", flush=True)
+                    time.sleep(wait)
+                    tpm_attempt += 1
+                    continue
+
+                if text and len(text) >= 20:
+                    return text
+
+                # Empty result — retry
+                non_rate_attempts += 1
+                if non_rate_attempts <= 3:
+                    print(f"    [MARS warning] Empty response (attempt {non_rate_attempts}/3), retrying in 5s...")
+                    time.sleep(5)
+                    continue
+                raise RuntimeError(f"MARS produced empty response after {non_rate_attempts} attempts for case {case.get('case_id')}.")
+            except DailyRateLimitExceeded:
+                raise
             except Exception as e:
-                print(f"    [MARS error] {e}")
-                if attempt == 0:
-                    time.sleep(2)
+                if _is_daily_rate_limit(e):
+                    raise DailyRateLimitExceeded(str(e))
+                elif _is_invalid_key_error(e):
+                    raise
+                elif _is_per_minute_rate_limit(e):
+                    wait = _extract_retry_wait(e, default=30.0 + min(tpm_attempt * 15, 60))
+                    print(f"\n    [MARS TPM Rate Limit] Waiting {wait:.1f}s before retry...\n", flush=True)
+                    time.sleep(wait)
+                    tpm_attempt += 1
                 else:
-                    return ""
-        return ""
+                    non_rate_attempts += 1
+                    if non_rate_attempts <= 3:
+                        print(f"    [MARS error] #{non_rate_attempts}: {str(e)[:100]} — retrying in 5s...")
+                        time.sleep(5)
+                    else:
+                        raise RuntimeError(f"MARS failed on case {case.get('case_id')} after 3 non-rate-limit errors: {e}")
+
 
 
 # ---------------------------------------------------------------------------
@@ -359,17 +533,12 @@ OUTPUT FORMAT: Return ONLY valid JSON in this exact schema:
 }}"""
 
 
-def frontier_geval_score(case: Dict[str, Any], response: str) -> Dict[str, Any]:
-    """Score response using Groq llama-3.3-70b with Chain-of-Thought rubric."""
+def frontier_geval_score(case: Dict[str, Any], response: str, judge_model: str = FRONTIER_JUDGE_MODEL) -> Dict[str, Any]:
+    """Score response using frontier LLM with Chain-of-Thought rubric.
+    Never returns synthetic default scores in research mode.
+    """
     if not response or len(response.strip()) < 20:
-        return {
-            "critique": "Response was empty or trivially short.",
-            "action_alignment": 1.0,
-            "conflict_awareness": 1.0,
-            "factual_grounding": 1.0,
-            "risk_foresight": 1.0,
-            "composite": 1.0,
-        }
+        raise ValueError(f"Cannot score empty or trivially short response for case {case.get('case_id')} in research mode.")
 
     prompt = GEVAL_COT_RUBRIC.format(
         department=case.get("department", ""),
@@ -381,9 +550,11 @@ def frontier_geval_score(case: Dict[str, Any], response: str) -> Dict[str, Any]:
         response=response.strip(),
     )
 
-    judge = _get_judge_llm(FRONTIER_JUDGE_MODEL)
+    judge = _get_judge_llm(judge_model)
+    tpm_attempt = 0
+    parse_failures = 0
 
-    for attempt in range(5):
+    while True:
         try:
             resp = judge.invoke(prompt)
             raw = _normalize_content(getattr(resp, "content", str(resp))).strip()
@@ -406,39 +577,47 @@ def frontier_geval_score(case: Dict[str, Any], response: str) -> Dict[str, Any]:
                 )
                 return scores
             else:
-                print(f"\n    [Judge warning] Attempt {attempt+1}: no JSON in response, retrying...")
+                parse_failures += 1
+                if parse_failures >= 10:
+                    raise RuntimeError(f"Judge returned non-JSON output after 10 attempts on case {case.get('case_id')}.")
+                print(f"\n    [Judge warning] No JSON in response (attempt {parse_failures}/10), retrying in 10s...")
                 time.sleep(10)
+        except DailyRateLimitExceeded:
+            raise
         except Exception as e:
-            err_str = str(e)
-            # Groq 429 rate-limit: back off hard
-            if "429" in err_str or "rate_limit" in err_str.lower() or "too many" in err_str.lower():
-                wait = 30 * (attempt + 1)
-                print(f"\n    [Groq 429 — rate limit] Attempt {attempt+1}: waiting {wait}s...")
+            if _is_daily_rate_limit(e):
+                raise DailyRateLimitExceeded(str(e))
+            elif _is_invalid_key_error(e):
+                raise
+            elif _is_per_minute_rate_limit(e):
+                wait = _extract_retry_wait(e, default=30.0 + min(tpm_attempt * 15, 60))
+                print(f"\n    [Judge TPM Rate Limit] Waiting {wait:.1f}s before retry...\n", flush=True)
                 time.sleep(wait)
+                tpm_attempt += 1
             else:
-                wait = 8 * (attempt + 1)
-                print(f"\n    [Judge warning] Attempt {attempt+1}: {err_str[:100]} — waiting {wait}s...")
+                parse_failures += 1
+                if parse_failures >= 5:
+                    raise RuntimeError(f"Judge failed after 5 non-rate-limit errors on case {case.get('case_id')}: {e}")
+                wait = 8 * min(parse_failures, 5)
+                print(f"\n    [Judge error] #{parse_failures}: {str(e)[:100]} — waiting {wait}s...")
                 time.sleep(wait)
 
-    return {
-        "critique": "Judge evaluation failed after 5 attempts.",
-        "action_alignment": 1.0,
-        "conflict_awareness": 1.0,
-        "factual_grounding": 1.0,
-        "risk_foresight": 1.0,
-        "composite": 1.0,
-    }
+
 
 
 # ---------------------------------------------------------------------------
 # Main Dual-Benchmark Runner
 # ---------------------------------------------------------------------------
-def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
+def run_dual_benchmark(
+    sample_size: int = 40,
+    generator_model: str = GENERATION_MODEL,
+    judge_model: str = FRONTIER_JUDGE_MODEL,
+) -> Dict[str, Any]:
     """Execute complete generation evaluation with deterministic & frontier LLM metrics."""
     print("=" * 85)
     print("RUNNING MARS DUAL GENERATION BENCHMARK (DETERMINISTIC + FRONTIER G-EVAL)")
-    print(f"Generator Model:    {GENERATION_MODEL} (Local RTX 2050 GPU)")
-    print(f"Frontier Judge:     {FRONTIER_JUDGE_MODEL} (Groq Cloud, 27B, free tier)")
+    print(f"Generator Model:    {generator_model}")
+    print(f"Frontier Judge:     {judge_model}")
     print("Deterministic NLP:  ROUGE-1/2/L + Embedding Semantic Sim + Precedent Citation Validity")
     print("=" * 85)
 
@@ -463,9 +642,9 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
     print(f"  Corpus: {len(corpus)} docs | Valid Case IDs: {len(valid_case_ids)}")
 
     # Initialize systems
-    g1 = ZeroShotLLMSystem()
-    g2 = NaiveRAGSystem(corpus=corpus, corpus_embeddings=corpus_embeddings)
-    mars = MARSSystem()
+    g1 = ZeroShotLLMSystem(model=generator_model)
+    g2 = NaiveRAGSystem(corpus=corpus, corpus_embeddings=corpus_embeddings, model=generator_model)
+    mars = MARSSystem(model=generator_model)
     systems = [g1, g2, mars]
 
     system_results: Dict[str, List[Dict[str, Any]]] = {s.NAME: [] for s in systems}
@@ -479,19 +658,20 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
     out_dir.mkdir(exist_ok=True)
     partial_path = out_dir / "generation_results_dual_partial.json"
 
-    # Resume checkpoint if available
+    # Resume checkpoint if available and matching model setup
     completed_case_ids: Set[str] = set()
     if partial_path.exists():
         try:
             with open(partial_path, "r") as f:
                 ckpt = json.load(f)
-                if "systems" in ckpt:
-                    for sys_name, agg in ckpt["systems"].items():
-                        if sys_name in system_results and "per_case" in agg:
-                            system_results[sys_name] = agg["per_case"]
-                    if system_results.get(systems[0].NAME):
-                        completed_case_ids = {s["case_id"] for s in system_results[systems[0].NAME]}
-                        print(f"Resuming from checkpoint: {len(completed_case_ids)} cases already completed.")
+                if ckpt.get("generator_model") == generator_model and ckpt.get("judge_model") == judge_model:
+                    if "systems" in ckpt:
+                        for sys_name, agg in ckpt["systems"].items():
+                            if sys_name in system_results and "per_case" in agg:
+                                system_results[sys_name] = agg["per_case"]
+                        if system_results.get(systems[0].NAME):
+                            completed_case_ids = {s["case_id"] for s in system_results[systems[0].NAME]}
+                            print(f"Resuming from checkpoint: {len(completed_case_ids)} cases already completed.")
         except Exception as e:
             print(f"Checkpoint read skipped: {e}")
 
@@ -507,58 +687,88 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 
         print(f"[{case_idx+1:02d}/{actual_n}] {case_id} | {dept}")
 
-        for sys_obj in systems:
-            print(f"  → {sys_obj.NAME} ... ", end="", flush=True)
-            t0 = time.perf_counter()
-            response = sys_obj.run(case)
-            latency_ms = (time.perf_counter() - t0) * 1000.0
+        case_records: Dict[str, Dict[str, Any]] = {}
+        try:
+            for sys_obj in systems:
+                print(f"  → {sys_obj.NAME} ... ", end="", flush=True)
+                t0 = time.perf_counter()
+                response = sys_obj.run(case)
+                latency_ms = (time.perf_counter() - t0) * 1000.0
 
-            # 1. Deterministic Metrics
-            det_metrics = calculate_deterministic_metrics(response, case, valid_case_ids)
+                # Pace generator token usage: short sleep between generation calls on Groq
+                if "groq" in generator_model.lower() and not isinstance(sys_obj, MARSSystem):
+                    time.sleep(8)  # ~8s between G1/G2 generator calls to pace TPM/TPD usage
 
-            # 2. Frontier G-Eval Judge
-            print(f"judging with Groq {FRONTIER_JUDGE_MODEL}... ", end="", flush=True)
-            geval_res = frontier_geval_score(case, response)
-            time.sleep(20)  # Groq free tier: 7K TPM — 20s gap keeps us safely under limit
+                # 1. Deterministic Metrics
+                det_metrics = calculate_deterministic_metrics(response, case, valid_case_ids)
 
-            # Consolidated record
-            record = {
-                "case_id": case_id,
-                "department": dept,
-                "outcome_label": case.get("outcome_label", "unknown"),
-                "latency_ms": round(latency_ms, 1),
-                "response_words": len(response.split()),
-                "response": response,
-                "critique": geval_res.get("critique", ""),
-                "action_alignment": geval_res["action_alignment"],
-                "conflict_awareness": geval_res["conflict_awareness"],
-                "factual_grounding": geval_res["factual_grounding"],
-                "risk_foresight": geval_res["risk_foresight"],
-                "composite": geval_res["composite"],
-                **det_metrics,
-            }
-            system_results[sys_obj.NAME].append(record)
-            print(f"composite={record['composite']:.2f} | FactGround={record['factual_grounding']:.0f} | Sim={record['semantic_similarity']:.2f}")
+                # 2. Frontier G-Eval Judge
+                print(f"judging with {judge_model}... ", end="", flush=True)
+                geval_res = frontier_geval_score(case, response, judge_model=judge_model)
+                if "groq" in judge_model.lower():
+                    time.sleep(20)  # Groq free tier: 7K TPM — 20s gap keeps us safely under limit
+                else:
+                    time.sleep(3)
 
-        # Save checkpoint after each case
-        checkpoint_agg: Dict[str, Any] = {}
-        for sys_name, case_scores in system_results.items():
-            if case_scores:
-                agg = {k: round(float(np.mean([s[k] for s in case_scores])), 4) for k in score_keys}
-                agg["n"] = len(case_scores)
-                agg["per_case"] = case_scores
-                checkpoint_agg[sys_name] = agg
+                # Consolidated record
+                record = {
+                    "case_id": case_id,
+                    "department": dept,
+                    "outcome_label": case.get("outcome_label", "unknown"),
+                    "latency_ms": round(latency_ms, 1),
+                    "response_words": len(response.split()),
+                    "response": response,
+                    "critique": geval_res.get("critique", ""),
+                    "action_alignment": geval_res["action_alignment"],
+                    "conflict_awareness": geval_res["conflict_awareness"],
+                    "factual_grounding": geval_res["factual_grounding"],
+                    "risk_foresight": geval_res["risk_foresight"],
+                    "composite": geval_res["composite"],
+                    **det_metrics,
+                }
+                case_records[sys_obj.NAME] = record
+                print(f"composite={record['composite']:.2f} | FactGround={record['factual_grounding']:.0f} | Sim={record['semantic_similarity']:.2f}")
 
-        with open(partial_path, "w") as f:
-            json.dump({
-                "benchmark": "MARS Multi-Year Dual Benchmark (Partial)",
-                "sample_size": actual_n,
-                "completed": len(system_results[systems[0].NAME]),
-                "generator_model": GENERATION_MODEL,
-                "judge_model": FRONTIER_JUDGE_MODEL,
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "systems": checkpoint_agg,
-            }, f, indent=2, default=str)
+            # All 3 systems succeeded for this case — append to results
+            for sys_name, rec in case_records.items():
+                system_results[sys_name].append(rec)
+
+            # Save checkpoint after each case
+            checkpoint_agg: Dict[str, Any] = {}
+            for sys_name, case_scores in system_results.items():
+                if case_scores:
+                    agg = {k: round(float(np.mean([s[k] for s in case_scores])), 4) for k in score_keys}
+                    agg["n"] = len(case_scores)
+                    agg["per_case"] = case_scores
+                    checkpoint_agg[sys_name] = agg
+
+            with open(partial_path, "w") as f:
+                json.dump({
+                    "benchmark": "MARS Multi-Year Dual Benchmark (Partial)",
+                    "sample_size": actual_n,
+                    "completed": len(system_results[systems[0].NAME]),
+                    "generator_model": generator_model,
+                    "judge_model": judge_model,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "systems": checkpoint_agg,
+                }, f, indent=2, default=str)
+
+        except DailyRateLimitExceeded as dre:
+            print("\n" + "=" * 90)
+            print("🚨 DAILY RATE LIMIT (TPD) REACHED — HALTING BENCHMARK")
+            print(f"Details: {dre}")
+            print("Research Data Integrity: ZERO default scores recorded. No corrupted data.")
+            print(f"Completed and verified cases: {len(system_results[systems[0].NAME])}/{actual_n}")
+            print("Checkpoint safely preserved. Resuming later will continue directly from this case.")
+            print("=" * 90)
+            checkpoint_agg = {}
+            for sys_name, case_scores in system_results.items():
+                if case_scores:
+                    agg = {k: round(float(np.mean([s[k] for s in case_scores])), 4) for k in score_keys}
+                    agg["n"] = len(case_scores)
+                    agg["per_case"] = case_scores
+                    checkpoint_agg[sys_name] = agg
+            return checkpoint_agg
 
     # Final Aggregation
     final_agg: Dict[str, Any] = {}
@@ -570,7 +780,7 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 
     # Print summary tables
     print("\n" + "=" * 105)
-    print(f"FRONTIER G-EVAL JUDGE (Groq {FRONTIER_JUDGE_MODEL}, Liu et al., EMNLP 2023)")
+    print(f"FRONTIER G-EVAL JUDGE ({judge_model}, Liu et al., EMNLP 2023)")
     print("=" * 105)
     header1 = f"{'System':<42} | {'ActAlign':>8} | {'ConflAware':>10} | {'FactGround':>10} | {'RiskFore':>8} | {'Composite':>9}"
     print(header1)
@@ -597,8 +807,8 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
     results = {
         "benchmark": "MARS Multi-Year Dual Benchmark (2023-2026)",
         "sample_size": actual_n,
-        "generator_model": GENERATION_MODEL,
-        "judge_model": FRONTIER_JUDGE_MODEL,
+        "generator_model": generator_model,
+        "judge_model": judge_model,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "dept_distribution": dict(dept_dist),
         "outcome_distribution": dict(outcome_dist),
@@ -616,6 +826,12 @@ def run_dual_benchmark(sample_size: int = 40) -> Dict[str, Any]:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="MARS Dual Generation Benchmark")
-    parser.add_argument("--sample-size", type=int, default=40)
+    parser.add_argument("--sample-size", type=int, default=40, help="Number of stratified cases to evaluate")
+    parser.add_argument("--generator", type=str, default=GENERATION_MODEL, help=f"Generator model (default: {GENERATION_MODEL})")
+    parser.add_argument("--judge", type=str, default=FRONTIER_JUDGE_MODEL, help=f"Judge model (default: {FRONTIER_JUDGE_MODEL})")
     args = parser.parse_args()
-    run_dual_benchmark(sample_size=args.sample_size)
+    run_dual_benchmark(
+        sample_size=args.sample_size,
+        generator_model=args.generator,
+        judge_model=args.judge,
+    )

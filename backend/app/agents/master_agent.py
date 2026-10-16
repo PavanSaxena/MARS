@@ -84,16 +84,20 @@ graph = build_graph()
 from app.core.errors import is_rate_limit_error, format_rate_limit_error
 
 
-def run_graph(user_input: str, thread_id: str = "default", model: str | None = None) -> tuple[str, dict]:
+def run_graph(
+    user_input: str,
+    thread_id: str = "default",
+    model: str | None = None,
+    force_pipeline: bool = False,
+    raise_on_rate_limit: bool = False,
+) -> tuple[str, dict]:
     """
     Execute the graph for one user query and return (final_decision_str, retrieved_cases_dict).
 
     `model` is optional and, when given, is written into the thread's
     checkpointed state as "<provider>:<model>" (see settings.AVAILABLE_MODELS).
-    It's deliberately only added to the state update when provided: if the
-    caller omits it on a later turn, the previously-selected model for this
-    thread_id carries over automatically via the LangGraph checkpointer,
-    rather than being reset to the default.
+    `force_pipeline`: when True, forces execution through the multi-agent decision pipeline.
+    `raise_on_rate_limit`: when True, re-raises RateLimitError instead of returning formatted markdown.
     """
     start_time = time.time()
     preview = user_input.replace("\n", " ")[:60]
@@ -102,11 +106,14 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
     initial_state: Dict[str, Any] = {"messages": [{"role": "user", "content": user_input}]}
     if model:
         initial_state["model"] = model
+    if force_pipeline:
+        initial_state["route"] = "pipeline"
+        initial_state["active_departments"] = ["finance", "rd", "legal", "operations"]
 
     config = {"configurable": {"thread_id": thread_id}}
     try:
         final_state = graph.invoke(initial_state, config=config)
-        output_text = final_state.get("final_output", "No output generated.")
+        output_text = final_state.get("final_output") or final_state.get("final_decision") or "No output generated."
         retrieved_cases = final_state.get("retrieved_cases") or {}
         elapsed = time.time() - start_time
         route = final_state.get("route", "pipeline")
@@ -116,6 +123,8 @@ def run_graph(user_input: str, thread_id: str = "default", model: str | None = N
         elapsed = time.time() - start_time
         if is_rate_limit_error(exc):
             logger.warning(f"[Graph] Rate limit encountered after {elapsed:.2f}s: {exc}")
+            if raise_on_rate_limit:
+                raise exc
             return format_rate_limit_error(exc, model_name=model), {}
         logger.error(f"[Graph] Execution failed after {elapsed:.2f}s: {exc}", exc_info=True)
         raise exc

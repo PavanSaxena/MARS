@@ -323,6 +323,8 @@ def main() -> None:
         help="Which benchmark or evaluation suite to run.",
     )
     parser.add_argument("--sample-size", type=int, default=40, help="Sample size for generation benchmark.")
+    parser.add_argument("--generator", type=str, default="ollama:qwen2.5:3b", help="Generator model (e.g. ollama:qwen2.5:3b, groq:qwen/qwen3.8-27b, openrouter:meta-llama/llama-3.3-70b-instruct).")
+    parser.add_argument("--judge", type=str, default="groq:qwen/qwen3.8-27b", help="Judge model (e.g. groq:qwen/qwen3.8-27b, openrouter:meta-llama/llama-3.3-70b-instruct).")
     parser.add_argument("--report-only", action="store_true", help="Regenerate BENCHMARK_REPORT.md from existing results.")
     parser.add_argument("--full", action="store_true", help="Run full evaluation instead of quick sample.")
     args = parser.parse_args()
@@ -353,7 +355,11 @@ def main() -> None:
     if args.mode in ("generation", "all"):
         print("\n>>> [2/5] Running Generation Benchmark...")
         from evaluation.eval_generation import run_dual_benchmark
-        gen_data = run_dual_benchmark(sample_size=args.sample_size)
+        gen_data = run_dual_benchmark(
+            sample_size=args.sample_size,
+            generator_model=args.generator,
+            judge_model=args.judge,
+        )
 
     if args.mode in ("routing", "all"):
         print("\n>>> [3/5] Running Routing & MultiCorp-QA Benchmarks...")

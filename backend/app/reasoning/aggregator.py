@@ -183,6 +183,7 @@ Final Decision:
         final_text = str(raw_content)
 
     return {
+        "final_output": final_text,
         "final_decision": final_text,
         "messages": [response],
     }

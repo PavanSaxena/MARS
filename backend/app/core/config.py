@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
 
     # Models selectable at request time (see QueryRequest.model in
     # app/api/routes.py). Each entry is "<provider>:<model>", matching
@@ -78,6 +79,7 @@ class Settings(BaseSettings):
             "openai": self.OPENAI_API_KEY,
             "anthropic": self.ANTHROPIC_API_KEY,
             "google_genai": self.GEMINI_API_KEY,
+            "openrouter": self.OPENROUTER_API_KEY,
             "ollama": "local",
         }.get(provider)
 
@@ -91,7 +93,7 @@ settings = Settings()
 # settings object. Without this sync, get_llm() (app/agents/common.py) fails
 # with e.g. "GROQ_API_KEY environment variable" even though the settings key
 # is correctly set.
-for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY", "GEMINI_API_KEY"):
+for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"):
     _value = getattr(settings, _env_key, None)
     if _value and not os.environ.get(_env_key):
         os.environ[_env_key] = _value

@@ -1,6 +1,6 @@
 # MARS Master Benchmark Report
 
-**Generated:** 2026-10-04 18:54 UTC  
+**Generated:** 2026-10-16 20:08 UTC  
 **System:** MARS — Multi-Agent Reasoning System for Corporate Decision Advisory  
 **Dataset:** 2,080 verified decisions (2023-2026) across 13 quarters with leakage-safe chronological evaluation  
 
@@ -23,24 +23,24 @@
 
 > **Standard:** G-Eval (Liu et al., EMNLP 2023) · RAGAS (Es et al., EACL 2024) · ROUGE (Lin, 2004)  
 > **Evaluation Sample:** 40 stratified cases balanced across all 4 departments and 2023-2026  
-> **Generator Model:** `ollama:qwen2.5:3b`  
-> **Frontier Judge:** `qwen/qwen3.8-27b` (Groq Cloud)
+> **Generator Model:** `groq:qwen/qwen3.8-27b`  
+> **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Groq Cloud)
 
 ### 2.1 Frontier G-Eval Multi-Dimensional Scores (1-5 Scale)
 
 | System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 2.475 | 1.775 | 1.600 | 2.500 | 2.087 |
-| Baseline G2: Naive RAG                     | 3.100 | 2.075 | 2.050 | 2.500 | 2.431 |
-| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 2.300 | 2.375 | 3.125 | 2.150 | 2.487 |
+| Baseline G1: Zero-Shot LLM                 | 3.425 | 3.125 | 2.450 | 3.675 | 3.169 |
+| Baseline G2: Naive RAG                     | 3.525 | 2.875 | 2.450 | 3.475 | 3.081 |
+| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 4.500 | 3.000 | 4.325 | 3.550 | 3.844 |
 
 ### 2.2 Deterministic NLP & Precedent Grounding
 
 | System | Semantic Similarity | ROUGE-L F1 | Mean Citations | Valid Citations | Citation Validity % |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 0.4879 | 0.0506 | 0.00 | 0.00 | 0.0% |
-| Baseline G2: Naive RAG                     | 0.5010 | 0.0589 | 1.65 | 1.65 | 65.0% |
-| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 0.4556 | 0.0457 | 0.78 | 0.78 | 20.0% |
+| Baseline G1: Zero-Shot LLM                 | 0.4998 | 0.0549 | 0.00 | 0.00 | 0.0% |
+| Baseline G2: Naive RAG                     | 0.5325 | 0.0588 | 3.80 | 3.80 | 87.5% |
+| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 0.6363 | 0.0839 | 4.92 | 4.90 | 99.5% |
 
 ---
 

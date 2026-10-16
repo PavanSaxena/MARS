@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -46,20 +47,44 @@ def get_llm(model_id: Optional[str] = None):
     """
     from langchain.chat_models import init_chat_model
 
-    resolved = model_id if model_id in settings.AVAILABLE_MODELS else settings.DEFAULT_MODEL
+    # Recognize model if in AVAILABLE_MODELS or has a valid provider prefix
+    known_providers = ("ollama", "groq", "openrouter", "google_genai", "openai", "anthropic")
+    if model_id and (model_id in settings.AVAILABLE_MODELS or any(model_id.startswith(p + ":") for p in known_providers)):
+        resolved = model_id
+    else:
+        resolved = settings.DEFAULT_MODEL
 
     if resolved not in _llm_cache:
         logger.info("llm_initializing model=%s", resolved)
         provider = resolved.split(":", 1)[0] if ":" in resolved else ""
+        model_name = resolved.split(":", 1)[1] if ":" in resolved else resolved
         kwargs: Dict[str, Any] = {"max_retries": 10}
-        if provider == "ollama":
-            # When running inside Docker, localhost inside the container is the
-            # container itself — not the host where Ollama listens. Use the
-            # configured OLLAMA_BASE_URL (defaults to host.docker.internal:11434)
-            # so the request escapes the container and reaches the host process.
+
+        if provider == "openrouter":
+            from langchain_openai import ChatOpenAI
+            api_key = settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY")
+            _llm_cache[resolved] = ChatOpenAI(
+                model=model_name,
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key,
+                max_retries=5,
+            )
+        elif provider == "groq":
+            from langchain_openai import ChatOpenAI
+            api_key = os.environ.get("GROQ_API_KEY") or settings.GROQ_API_KEY
+            _llm_cache[resolved] = ChatOpenAI(
+                model=model_name,
+                base_url="https://api.groq.com/openai/v1",
+                api_key=api_key,
+                max_retries=5,
+                max_tokens=600,
+            )
+        elif provider == "ollama":
             kwargs["base_url"] = settings.OLLAMA_BASE_URL
             logger.info(f"[get_llm] Ollama model '{resolved}' → base_url={settings.OLLAMA_BASE_URL}")
-        _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
+            _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
+        else:
+            _llm_cache[resolved] = init_chat_model(resolved, **kwargs)
     else:
         logger.info("llm_reused model=%s", resolved)
     return _llm_cache[resolved]

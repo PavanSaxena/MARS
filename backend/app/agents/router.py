@@ -70,6 +70,11 @@ def classify_intent(state: State) -> Dict[str, Any]:
        to dynamically determine the exact active department specialists needed.
     """
     logger.info("router_started")
+    if state.get("route") == "pipeline":
+        active_depts = state.get("active_departments") or ["finance", "rd", "legal", "operations"]
+        logger.info("router_preset route=pipeline active_departments=%s", active_depts)
+        return {"route": "pipeline", "active_departments": active_depts}
+
     messages = state.get("messages", [])
     if not messages:
         logger.info("router_selected route=chat")
