@@ -16,7 +16,7 @@ Two kinds of tools:
     search in app/storage/retriever.py, this is a plain filtered query
     (action-type breakdown, most recent cases + their outcomes) for a
     department.
-  - "External" tools (MarketAnalysisTool, LegalDatabaseTool,
+  - "External" tools (MarketAnalysisTool,
     SupplyChainAnalyzerTool) run a live Tavily web search for information
     that isn't in the case database at all.
 
@@ -28,11 +28,16 @@ spawned as a subprocess over stdio by app.mcp.client the first time any
 agent needs a tool, and stays alive for the life of the backend process.
 """
 from typing import Any, Dict
+import json
+import re
+from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
 from app.core.config import settings
 from app.services.supabase_client import get_supabase_client
+from app.mcp.providers import resolve_country, list_supported_jurisdictions
+from app.mcp.providers.base import LegalProviderError
 
 mcp = FastMCP("mars-tools", log_level="ERROR")
 
@@ -178,11 +183,109 @@ def experiment_tracker_tool(query: str) -> str:
 # Legal
 # ---------------------------------------------------------------------------
 
-@mcp.tool(name="LegalDatabaseTool")
-def legal_database_tool(query: str) -> str:
-    """Run a live web search for relevant laws, regulations, or legal
-    precedent related to the query."""
-    return _web_search(query, "Legal/regulatory research")
+def _legal_json(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def _legal_provider(country: str) -> tuple[Any, str | None]:
+    resolved = resolve_country(country)
+    if resolved["status"] != "supported":
+        return resolved, resolved["status"]
+    return resolved["provider"], None
+
+
+def _legal_discovery(query: str, country: str, kind: str) -> list[dict[str, Any]]:
+    """Secondary web discovery for countries without an implemented provider."""
+    raw = _web_search(f"{query} law {country}", f"Legal web discovery ({country})")
+    results = []
+    for line in raw.splitlines()[1:]:
+        if not line.strip():
+            continue
+        # Tavily output is display text; do not mistake its prose for verified fields.
+        url_match = re.search(r"\((https?://[^)]+)\)", line)
+        results.append({"type": kind, "title": line.strip()[:300], "jurisdiction": country,
+                        "source": "Tavily web discovery", "source_type": "web_discovery",
+                        "authority": "secondary", "source_url": url_match.group(1) if url_match else None,
+                        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                        "note": "Secondary discovery only. This is not authoritative law; authoritative verification was unavailable."})
+    return results
+
+
+def _legal_search(query: str, country: str, kind: str) -> str:
+    provider, error = _legal_provider(country)
+    if error == "unrecognized":
+        return _legal_json({"error": "invalid_country", "country": country,
+                            "supported_jurisdictions": list_supported_jurisdictions()})
+    if error == "unsupported":
+        return _legal_json({"results": _legal_discovery(query, country, kind), "authority": "secondary",
+                            "authoritative_verification": "unavailable"})
+    try:
+        method = {"law": provider.search_laws, "regulation": provider.search_regulations,
+                  "judgment": provider.search_judgments}[kind]
+        return _legal_json({"results": method(query), "provider": provider.source_name,
+                            "authority": provider.authority_level})
+    except LegalProviderError as exc:
+        return _legal_json({"error": "provider_unavailable", "message": str(exc),
+                            "country": provider.jurisdiction, "authority": "unknown"})
+
+
+@mcp.tool(name="search_laws")
+def search_laws(query: str, country: str) -> str:
+    """Search authoritative statutes for a supported country; otherwise return clearly marked secondary discovery."""
+    return _legal_search(query, country, "law")
+
+
+@mcp.tool(name="get_law")
+def get_law(law_name_or_id: str, country: str) -> str:
+    """Resolve a law name or canonical ID and retrieve its official text when supported."""
+    provider, error = _legal_provider(country)
+    if error == "unrecognized":
+        return _legal_json({"error": "invalid_country", "country": country,
+                            "supported_jurisdictions": list_supported_jurisdictions()})
+    if error == "unsupported":
+        return _legal_json({"results": _legal_discovery(law_name_or_id, country, "law"),
+                            "authoritative_verification": "unavailable"})
+    try:
+        result = provider.get_law(law_name_or_id)
+        return _legal_json({"result": result, "provider": provider.source_name,
+                            "authority": provider.authority_level} if result else {"results": [], "message": "No matching law found."})
+    except LegalProviderError as exc:
+        return _legal_json({"error": "provider_unavailable", "message": str(exc), "authority": "unknown"})
+
+
+@mcp.tool(name="search_regulations")
+def search_regulations(query: str, country: str) -> str:
+    """Search regulations and subordinate legislation."""
+    return _legal_search(query, country, "regulation")
+
+
+@mcp.tool(name="list_supported_jurisdictions")
+def supported_jurisdictions() -> str:
+    """List jurisdictions backed by an implemented authoritative legislation provider."""
+    return _legal_json(list_supported_jurisdictions())
+
+
+@mcp.tool(name="search_judgments")
+def search_judgments(query: str, country: str) -> str:
+    """Search judgments, with the result authority identified by its source."""
+    return _legal_search(query, country, "judgment")
+
+
+@mcp.tool(name="get_judgment")
+def get_judgment(judgment_id: str, country: str) -> str:
+    """Retrieve a judgment by its provider ID where a provider supports it."""
+    provider, error = _legal_provider(country)
+    if error == "unrecognized":
+        return _legal_json({"error": "invalid_country", "country": country,
+                            "supported_jurisdictions": list_supported_jurisdictions()})
+    if error == "unsupported":
+        return _legal_json({"results": _legal_discovery(judgment_id, country, "judgment"),
+                            "authoritative_verification": "unavailable"})
+    try:
+        result = provider.get_judgment(judgment_id)
+        return _legal_json({"result": result, "authority": result.get("authority") if result else "unknown"})
+    except LegalProviderError as exc:
+        return _legal_json({"error": "provider_unavailable", "message": str(exc), "authority": "unknown"})
 
 
 @mcp.tool(name="ComplianceCheckerTool")

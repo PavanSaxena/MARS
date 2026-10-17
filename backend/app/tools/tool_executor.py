@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 AGENT_TOOL_REGISTRY: Dict[str, List[str]] = {
     "finance_agent": ["FinancialDataTool", "MarketAnalysisTool"],
     "rd_agent": ["ResearchDatabaseTool", "ExperimentTrackerTool"],
-    "legal_agent": ["LegalDatabaseTool", "ComplianceCheckerTool"],
+    "legal_agent": ["search_laws", "get_law", "search_regulations",
+                    "list_supported_jurisdictions", "search_judgments", "get_judgment",
+                    "ComplianceCheckerTool"],
     "operations_agent": ["OperationsDashboardTool", "SupplyChainAnalyzerTool"],
 }
 

@@ -311,6 +311,49 @@ def build_json_prompt(
             "enough to answer well; otherwise answer directly without calling a tool.\n"
         )
 
+    legal_mode = agent_title.lower().startswith("legal")
+    if legal_mode:
+        grounding_directives = """GROUNDING AND EVIDENCE DIRECTIVES:
+1. Keep historical MARS cases and external legal sources as separate evidence. Historical cases inform organizational precedent but do not establish current law.
+2. Statutory, regulatory, and judicial sources are distinct. Use the matching legal MCP tool when legal verification is needed.
+3. Cite only evidence actually returned by tools. Preserve jurisdiction, authority, source, canonical URL, and retrieval time when available. Do not invent provisions, status, dates, or citations.
+4. Secondary web discovery and third-party court data are not authoritative. State explicitly when authoritative verification is unavailable.
+5. If no historical cases were retrieved but legal sources were found, answer using the legal sources and say historical MARS precedent was unavailable. If neither evidence source exists, state both limitations.
+6. Set confidence based on relevant evidence actually considered and its authority. This self-reported confidence is separate from case_based_confidence, which remains based only on historical MARS cases.
+
+Return ONLY valid JSON with this schema:
+{
+  "response": "string",
+  "reasoning": "string",
+  "confidence": 0.0,
+  "legal_evidence": [],
+  "judicial_evidence": []
+}"""
+    else:
+        grounding_directives = """GROUNDING AND PRECEDENT DIRECTIVES:
+1. Evidence-Based Reasoning: Base your assessment strictly on the historical precedents, analogous decisions, and outcomes provided in the Retrieved Evidence above.
+2. Precedent Application:
+   - Treat success cases as examples of strategies to consider and failure cases as warnings that may inform safeguards; neither category proves that an action will succeed or fail in the current situation.
+   - Treat mixed, unresolved, and unclassified outcomes as uncertain. Do not use them as success or failure evidence.
+   - Synthesize only lessons relevant to the current query from the retrieved cases.
+   - In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
+3. Strict Refusal ONLY When Database is Empty:
+   - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
+     {
+       "response": "No historical evidences/decisions found.",
+       "reasoning": "No historical cases were retrieved from the dataset for this query. Without prior historical precedent, no evidence-grounded recommendation can be provided.",
+       "confidence": 0.0
+     }
+   - If cases ARE present above, you MUST use them as precedents rather than returning "No historical evidences/decisions found".
+4. Confidence Score: Set "confidence" between 0.0 and 1.0 reflecting the relevance and historical success rate of the retrieved cases.
+
+Return ONLY valid JSON with this schema:
+{
+  "response": "string",
+  "reasoning": "string",
+  "confidence": 0.0
+}"""
+
     return f"""
 You are a {agent_title} AI Agent.
 
@@ -325,26 +368,8 @@ Retrieved Historical Evidence from Dataset:
 {case_text}
 <<<CASE_EVIDENCE_END>>>
 {tools_block}
-GROUNDING AND PRECEDENT DIRECTIVES:
-1. Evidence-Based Reasoning: Base your assessment strictly on the historical precedents, analogous decisions, and outcomes provided in the Retrieved Evidence above.
-2. Precedent Application:
-   - Treat success cases as examples of strategies to consider and failure cases as warnings that may inform safeguards; neither category proves that an action will succeed or fail in the current situation.
-   - Treat mixed, unresolved, and unclassified outcomes as uncertain. Do not use them as success or failure evidence.
-   - Synthesize only lessons relevant to the current query from the retrieved cases.
-   - In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
-3. Strict Refusal ONLY When Database is Empty:
-   - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
-     {{
-       "response": "No historical evidences/decisions found.",
-       "reasoning": "No historical cases were retrieved from the dataset for this query. Without prior historical precedent, no evidence-grounded recommendation can be provided."
-     }}
-   - If cases ARE present above, you MUST use them as precedents rather than returning "No historical evidences/decisions found".
 
-Return ONLY valid JSON with this schema:
-{{
-  "response": "string",
-  "reasoning": "string"
-}}
+{grounding_directives}
 
 Rules:
 {rules_block}
@@ -352,13 +377,13 @@ Rules:
 
 
 
-def parse_structured_output(text: str) -> Dict[str, Any]:
+def parse_structured_output(text: str, *, preserve_legal_confidence: bool = False) -> Dict[str, Any]:
     """Parse LLM output with JSON-first parsing and robust fallback."""
     try:
         parsed_json = _extract_json_object(text)
         if parsed_json is not None:
-            return _normalize_output(parsed_json)
-        return _normalize_output(_parse_sections_fallback(text))
+            return _normalize_output(parsed_json, preserve_legal_confidence=preserve_legal_confidence)
+        return _normalize_output(_parse_sections_fallback(text), preserve_legal_confidence=preserve_legal_confidence)
     except Exception:
         return {"response": text, "reasoning": "Parsing failed", "confidence": 0.5}
 
@@ -452,7 +477,7 @@ def _parse_confidence(value: str) -> Optional[float]:
             return None
 
 
-def _normalize_output(data: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_output(data: Dict[str, Any], *, preserve_legal_confidence: bool = False) -> Dict[str, Any]:
     response = str(data.get("response", "")).strip()
     reasoning = str(data.get("reasoning", "")).strip()
 
@@ -461,16 +486,22 @@ def _normalize_output(data: Dict[str, Any]) -> Dict[str, Any]:
     
     # If the response explicitly states no historical evidence was found, confidence must be 0.0
     combined_text = f"{response} {reasoning}".lower()
-    if any(phrase in combined_text for phrase in ("no historical", "no evidence", "no relevant cases", "no prior historical")):
+    if not preserve_legal_confidence and any(phrase in combined_text for phrase in ("no historical", "no evidence", "no relevant cases", "no prior historical")):
         confidence = 0.0
     else:
         confidence = 0.5 if parsed_confidence is None else max(0.0, min(1.0, parsed_confidence))
 
-    return {
+    normalized = {
         "response": response,
         "reasoning": reasoning,
         "confidence": confidence,
     }
+    # Legal agents may add source evidence arrays; retain structured fields
+    # while keeping the shared confidence and response normalization intact.
+    for key in ("legal_evidence", "judicial_evidence", "historical_case_evidence"):
+        if isinstance(data.get(key), list):
+            normalized[key] = data[key]
+    return normalized
 
 
 
@@ -676,7 +707,7 @@ def execute_department_agent(
     )
     logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
 
-    parsed_output = parse_structured_output(content)
+    parsed_output = parse_structured_output(content, preserve_legal_confidence=(dept_code == "legal"))
     parsed_output.update(
         build_case_evidence(
             cases,
@@ -686,6 +717,10 @@ def execute_department_agent(
             department=dept_code,
         )
     )
+    if dept_code == "legal":
+        parsed_output.setdefault("historical_case_evidence", parsed_output.get("retrieved_cases", []))
+        parsed_output.setdefault("legal_evidence", [])
+        parsed_output.setdefault("judicial_evidence", [])
     if warnings:
         parsed_output["warnings"] = warnings
     logger.info("agent_finished agent=%s", dept_code)

@@ -12,19 +12,23 @@ def legal_agent(state: State) -> Dict[str, Any]:
         agent_title="Legal Department",
         output_key="legal_output",
         role_points=[
-            "Analyze legal implications and compliance based strictly on retrieved historical evidence",
-            "Assess legal risks and regulatory constraints using past case precedents",
-            "Refuse to fabricate or speculate if no historical cases exist",
+            "Analyze legal implications using historical MARS cases and retrieved legal sources as separate evidence types",
+            "Use statutory tools for legislation, regulatory tools for subordinate legislation and compliance, and judgment tools for judicial interpretation",
+            "Use only sources whose authority and jurisdiction are explicit; never invent provisions or citations",
         ],
         rules=[
-            "Ground all legal risk and compliance assessments strictly in the retrieved historical cases",
-            "Do NOT fabricate regulatory guidance, Directives, or compliance steps without dataset evidence",
-            "If no relevant cases were retrieved, return 'No historical evidences/decisions found.' and set confidence to 0.0",
-            "Confidence must reflect the empirical grounding from the retrieved cases [0.0 to 1.0]",
+            "Keep historical_case_evidence, legal_evidence, and judicial_evidence distinct; historical MARS cases do not establish what current law says",
+            "For Indian statutory text use search_laws then get_law; use search_regulations for subordinate legislation and search_judgments/get_judgment for judicial interpretation",
+            "Never present secondary web discovery or third-party judgment data as definitive or authoritative law",
+            "When authoritative verification is unavailable, state that explicitly and identify any secondary sources as unverified discovery",
+            "Include legal_evidence and judicial_evidence arrays in the JSON when legal tools return evidence; include type, id, title, section, jurisdiction, source, authority, source_url, and retrieved_at when available",
+            "Do not fabricate provisions, citations, case names, dates, statuses, or metadata; preserve unknown fields as unknown",
+            "Confidence reflects the strength and authority of evidence actually considered, including legal sources, from 0.0 to 1.0",
+            "case_based_confidence remains a separate score over historical MARS cases and is not changed by legal-source authority",
         ],
     )
 
 
 def parse_legal_output(text: str) -> Dict[str, Any]:
     """Parse structured fields from Legal LLM output."""
-    return parse_structured_output(text)
+    return parse_structured_output(text, preserve_legal_confidence=True)

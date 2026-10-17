@@ -71,11 +71,11 @@ Department tools are served over a real **Model Context Protocol** server (`app/
 |---|---|---|
 | **Finance** | `FinancialDataTool`, `MarketAnalysisTool` | Supabase `decisions`/`outcomes` aggregate / Live Tavily web search |
 | **R&D** | `ResearchDatabaseTool`, `ExperimentTrackerTool` | Supabase `decisions`/`outcomes` aggregate |
-| **Legal** | `LegalDatabaseTool`, `ComplianceCheckerTool` | Live Tavily web search / Supabase `decisions`/`outcomes` aggregate |
+| **Legal** | `search_laws`, `get_law`, `search_regulations`, `search_judgments`, `get_judgment`, `list_supported_jurisdictions`, `ComplianceCheckerTool` | India Code legislation provider, optional eCourtsIndia judgment discovery, secondary Tavily fallback, and Supabase historical-case aggregate |
 | **Operations** | `OperationsDashboardTool`, `SupplyChainAnalyzerTool` | Supabase `decisions`/`outcomes` aggregate / Live Tavily web search |
 
 - **Internal tools** (`FinancialDataTool`, `ResearchDatabaseTool`, `ExperimentTrackerTool`, `ComplianceCheckerTool`, `OperationsDashboardTool`) perform direct relational queries on `decisions` and `outcomes` for departmental action-type distributions and historical success rates.
-- **External search tools** (`MarketAnalysisTool`, `LegalDatabaseTool`, `SupplyChainAnalyzerTool`) invoke live Tavily web search when `TAVILY_API_KEY` is present, or return a graceful fallback status if unconfigured.
+- **External search tools** (`MarketAnalysisTool`, `SupplyChainAnalyzerTool`) invoke live Tavily web search when `TAVILY_API_KEY` is present. Legal tools use the India Code provider for Indian legislation; unsupported countries can return explicitly secondary Tavily discovery. eCourtsIndia judgment access requires `ECOURTSINDIA_API_TOKEN` and is labeled secondary pending verification against official court records.
 
 The LLM decides per-query whether to call a tool at all — see the "Retrieved Evidence... you also have these tools available" section of the prompt in `app/agents/common.py:build_json_prompt`, where the bound tools now come from `app/tools/tool_registry.py:get_tool_objects_for_agent`, which in turn calls `app/mcp/client.py:get_langchain_tools_sync` and filters to that agent's allowlist. If the LLM calls one, `app/tools/tool_executor.py:execute_tool_call` re-checks the same allowlist, then forwards the call to `app/mcp/client.py:call_tool_sync` — a real MCP `CallToolRequest` round trip to the server subprocess — and the result is appended as a `ToolMessage` before the final answer is generated. Which tools were actually called (if any) is tracked in `tools_used` and surfaced in the per-department `explanation`.
 
