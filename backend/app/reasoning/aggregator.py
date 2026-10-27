@@ -64,10 +64,18 @@ def _fmt_department(name: str, output: dict) -> str:
         if rationale:
             weights_line += f" ({rationale})"
 
+    resp_text = str(output.get('response', 'N/A'))
+    if len(resp_text) > 1500:
+        resp_text = resp_text[:1500] + " ... [truncated for token budget]"
+
+    reason_text = str(output.get('reasoning', 'N/A'))
+    if len(reason_text) > 1500:
+        reason_text = reason_text[:1500] + " ... [truncated for token budget]"
+
     return (
         f"--- {name} Assessment ---\n"
-        f"Response: {output.get('response', 'N/A')}\n"
-        f"Reasoning: {output.get('reasoning', 'N/A')}\n"
+        f"Response: {resp_text}\n"
+        f"Reasoning: {reason_text}\n"
         f"Case-Based Confidence: {case_based_text} (Avg Sim: {sim_text}, Historical Success: {succ_text}){conformal_line}{weights_line}\n"
         f"LLM Self-Reported Confidence: {reported_text}\n"
         f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}\n"
@@ -144,8 +152,9 @@ CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
    - Risks, safeguards, roadmap steps, and cross-department resolutions must be supported by grounded departments' findings. Identify material gaps and leave unsupported sequencing, owners, budgets, and dates unspecified.
 4. IF DEPARTMENTS HAVE VALID GROUNDED EVIDENCE:
    - Identify key recommendations, agreements, and conflicts supported by their cited historical cases.
-   - Under "Conflicts": Explicitly cross-examine each material proposal against peer concerns, citing the department and relevant case IDs. State the evidence-backed resolution/compromise or identify what remains unresolved.
-   - Under "Risk Foresight": Identify concrete downstream failure modes grounded in retrieved failure cases or explicit departmental findings. Pair each risk with a safeguard only when the evidence supports that safeguard; cite case IDs and label material evidence gaps.
+   - Under "Conflicts": Rigorously synthesize and cross-examine competing departmental priorities (e.g., Finance's capital allocation and margin targets vs. Operations' buffer inventory and SLA commitments vs. Legal's regulatory covenants vs. R&D's technical feasibility). Explicitly state the evidence-backed tension, cite relevant case IDs from each side, and provide a concrete, Pareto-optimal resolution or compromise.
+   - Under "Risk Foresight": Comprehensively identify cross-departmental downstream failure modes (macroeconomic headwinds, supply chain disruptions, regulatory exposure, technical bottlenecks). If any retrieved case indicates a historical failure, flag that risk prominently and pair it with an evidence-backed safeguard citing exact case IDs.
+   - Anti-Failure Guardrail: If historical precedents resulted in failure, NEVER endorse repeating the failed action unchanged; recommend an adjusted, defensive, or phased rollout to avert documented failure modes.
    - Weight higher-confidence, evidence-backed departments more heavily.
    - Under "Recommended Strategic Plan & Action Roadmap": Give 2-3 ordered phases only when that sequence is supported by the assessments and cases. For each phase, state the concrete action and its supporting department/case IDs. Do not fabricate owners, budgets, dates, metrics, or dependencies; say when the dataset does not establish them.
    - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.

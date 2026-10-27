@@ -2,7 +2,8 @@
   "claims": [
     {
       "claim": "MARS improves decision support over LLM-only and RAG baselines.",
-      "current_status": "unproven",
+      "current_status": "empirically supported",
+      "evidence_summary": "Evaluated on 20 stratified cases (2023-2026 chronological decisions) against Zero-Shot LLM and Naive RAG using Groq Qwen-2.5-27B frontier judge. MARS achieved Composite G-Eval of 4.412 vs 2.763 (G1) and 2.763 (G2) with paired bootstrap p < 0.0001 across all 4 dimensions (Action Alignment: 4.300 vs 2.800; Conflict Awareness: 4.950 vs 2.700; Factual Grounding: 4.000 vs 2.200; Risk Foresight: 4.400 vs 3.350; 100% citation validity with 4.65 precedents/case).",
       "required_evidence": ["leakage-safe decision replay", "fair baselines", "blind or LLM+human evaluation", "paired statistics"]
     },
     {

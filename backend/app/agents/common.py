@@ -333,10 +333,10 @@ Return ONLY valid JSON with this schema:
         grounding_directives = """GROUNDING AND PRECEDENT DIRECTIVES:
 1. Evidence-Based Reasoning: Base your assessment strictly on the historical precedents, analogous decisions, and outcomes provided in the Retrieved Evidence above.
 2. Precedent Application:
-   - Treat success cases as examples of strategies to consider and failure cases as warnings that may inform safeguards; neither category proves that an action will succeed or fail in the current situation.
-   - Treat mixed, unresolved, and unclassified outcomes as uncertain. Do not use them as success or failure evidence.
-   - Synthesize only lessons relevant to the current query from the retrieved cases.
-   - In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
+   - Success Cases: Extract concrete operational tactics, timing, and risk buffers that drove verified positive outcomes.
+   - Failure Cases: Treat as strict empirical warnings. NEVER recommend repeating an action that previously resulted in documented failure (e.g., revenue contraction, legal liability, factory disruption, or margin collapse). Explicitly identify the failure's root causes, advise caution or a strategic restructuring, and mandate protective safeguards.
+   - Mixed, Unresolved, or Unclassified: Treat as uncertain and maintain a conservative risk posture.
+   - Grounding: In your "reasoning", cite specific Case IDs/titles from the evidence that inform your recommendation.
 3. Strict Refusal ONLY When Database is Empty:
    - ONLY if the evidence explicitly states "No relevant cases found in dataset." with zero cases:
      {
@@ -673,11 +673,27 @@ def execute_department_agent(
 
     Handles active department routing gating, case retrieval, tool binding,
     LLM invocation, structured output parsing, and evidence attachment.
+
+    Stagger delays prevent simultaneous ITPM blowout when all 4 agents run in
+    parallel under Groq's 7 000 input-token-per-minute free-tier limit.
+    Finance fires first (0 s), then Operations (15 s), R&D (30 s), Legal (45 s).
+    Override via env var MARS_AGENT_STAGGER_S (set to "0" to disable for paid tiers).
     """
     dept_code = department.lower()
     active_depts = state.get("active_departments")
     if active_depts is not None and dept_code not in active_depts:
         return {output_key: None}
+
+    # --- ITPM stagger: spread parallel agents across time to avoid 429s ---
+    import os as _os
+    _base_stagger = float(_os.environ.get("MARS_AGENT_STAGGER_S", "15"))
+    _stagger_map = {"finance": 0, "operations": 1, "rd": 2, "legal": 3}
+    _stagger_secs = _base_stagger * _stagger_map.get(dept_code, 0)
+    if _stagger_secs > 0:
+        logger.info("agent_stagger agent=%s delay=%.0fs", dept_code, _stagger_secs)
+        import time as _time
+        _time.sleep(_stagger_secs)
+    # -----------------------------------------------------------------------
 
     logger.info("agent_started agent=%s", dept_code)
     messages, query = extract_messages_and_query(state)

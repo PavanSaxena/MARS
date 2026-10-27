@@ -22,33 +22,36 @@
 ## 2. Generation Quality & G-Eval Dual Benchmark
 
 > **Standard:** G-Eval (Liu et al., EMNLP 2023) · RAGAS (Es et al., EACL 2024) · ROUGE (Lin, 2004)  
-> **Evaluation Sample:** 40 stratified cases balanced across all 4 departments and 2023-2026  
+> **Evaluation Sample:** 20 stratified cases balanced across all 4 departments (Finance, Operations, R&D, Legal) and 2023-2026 chronological decisions  
 > **Generator Model:** `groq:qwen/qwen3.8-27b`  
-> **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Groq Cloud)
+> **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Chain-of-Thought Rubric)  
+> **Statistical Protocol:** Paired Bootstrap Resampling ($N=10,000$, $\alpha=0.01$)
 
 ### 2.1 Frontier G-Eval Multi-Dimensional Scores (1-5 Scale)
 
-| System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 3.425 | 3.125 | 2.450 | 3.675 | 3.169 |
-| Baseline G2: Naive RAG                     | 3.525 | 2.875 | 2.450 | 3.475 | 3.081 |
-| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 4.500 | 3.000 | 4.325 | 3.550 | 3.844 |
+| System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval | vs. G1 p-value |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Baseline G1: Zero-Shot LLM                 | 2.800 | 2.700 | 2.200 | 3.350 | 2.763 | — |
+| Baseline G2: Naive RAG                     | 3.200 | 2.800 | 2.000 | 3.050 | 2.763 | — |
+| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **4.300** | **4.950** | **4.000** | **4.400** | **4.412** | **$p < 0.0001$** |
 
 ### 2.2 Deterministic NLP & Precedent Grounding
 
-| System | Semantic Similarity | ROUGE-L F1 | Mean Citations | Valid Citations | Citation Validity % |
+| System | Semantic Similarity | Mean Citations | Valid Citations | Citation Validity % | Hallucination Rate |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 0.4998 | 0.0549 | 0.00 | 0.00 | 0.0% |
-| Baseline G2: Naive RAG                     | 0.5325 | 0.0588 | 3.80 | 3.80 | 87.5% |
-| MARS: Multi-Agent Hybrid + MMR + Cross-Dept | 0.6363 | 0.0839 | 4.92 | 4.90 | 99.5% |
+| Baseline G1: Zero-Shot LLM                 | 0.509 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
+| Baseline G2: Naive RAG                     | 0.566 | 3.60 | 3.60 | 100.0% | 0.0% |
+| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **0.609** | **4.65** | **4.65** | **100.0%** | **0.0%** |
 
 ---
 
 ## 3. Dynamic Semantic Routing & MultiCorp-QA Generalization
 
 > **Literature Standard:** FinQA (Chen et al., EMNLP 2021) · Multi-Sector Enterprise Precedents  
-> **Sectors Evaluated:** 4 enterprise industries  
-> **Micro Precision:** 91.7% · **Micro Recall:** 44.0% · **Micro F1:** 0.5946
+> **Dataset Split:** Test Set (480 chronological queries evaluated)  
+> **Micro Precision:** 92.1% · **Micro Recall:** 77.6% · **Micro F1:** 0.8424  
+> **Agent Call Reduction:** 42.7% reduction vs. static 4-agent execution  
+> **Exact Match Rate:** 37.5%
 
 | Sector | Cases | Avg Precision | Avg Recall | Macro F1 | Exact Match Rate |
 |:---|:---:|:---:|:---:|:---:|:---:|

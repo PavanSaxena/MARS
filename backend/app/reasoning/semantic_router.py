@@ -53,9 +53,9 @@ def _get_department_centroids() -> Dict[str, np.ndarray]:
 
 def route_departments_semantically(
     query: str,
-    threshold: float = 0.32,
-    margin_ratio: float = 0.70,
-    min_departments: int = 1,
+    threshold: float = 0.18,
+    margin_ratio: float = 0.50,
+    min_departments: int = 2,
 ) -> Tuple[List[str], Dict[str, float]]:
     """
     Dynamically route query to active departments using embedding-space gating.
