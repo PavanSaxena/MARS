@@ -5,13 +5,14 @@ Compares:
   - MARS: Multi-Agent System with High-Recall Semantic Routing & Dialectical Aggregation
 """
 
+import argparse
 import datetime
 import json
 import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 import numpy as np
@@ -37,10 +38,19 @@ from evaluation.eval_generation import (
     DailyRateLimitExceeded,
 )
 
-def run_experiment(sample_size: int = 8, judge_model: str = "qwen/qwen3.8-27b", gen_model: str = "groq:qwen/qwen3.8-27b"):
+def run_experiment(
+    sample_size: int = 20,
+    offset_per_dept: int = 0,
+    judge_model: str = "qwen/qwen3.8-27b",
+    gen_model: str = "groq:qwen/qwen3.8-27b",
+    output_filename: str = "quality_experiment_results.json",
+    checkpoint_filename: str = "quality_experiment_checkpoint.json",
+):
     print("=" * 90)
     print("MARS DECISION QUALITY EXPERIMENTAL RUN")
     print(f"Generator Model: {gen_model} | Frontier Judge: {judge_model}")
+    print(f"Sample Size: {sample_size} | Offset Per Dept: {offset_per_dept}")
+    print(f"Output File: {output_filename} | Checkpoint: {checkpoint_filename}")
     print("=" * 90)
 
     # Load verified dataset and pick a balanced stratified test sample
@@ -56,9 +66,11 @@ def run_experiment(sample_size: int = 8, judge_model: str = "qwen/qwen3.8-27b", 
     for dept, dcases in cases_by_dept.items():
         # Pick cases with known outcomes and rich conflicts
         sorted_cases = sorted(dcases, key=lambda x: len(str(x.get("conflicting_perspectives", ""))), reverse=True)
-        sample.extend(sorted_cases[:per_dept])
+        sample.extend(sorted_cases[offset_per_dept : offset_per_dept + per_dept])
 
-    print(f"Selected {len(sample)} stratified cases ({per_dept} per department).")
+    print(f"Selected {len(sample)} stratified cases ({per_dept} per department, offset {offset_per_dept}).")
+    for s in sample:
+        print(f"  - {s.get('case_id')} ({s.get('department')}): {s.get('decision_title')[:50]}")
 
     valid_case_ids = {c["case_id"] for c in all_cases}
 
@@ -79,8 +91,8 @@ def run_experiment(sample_size: int = 8, judge_model: str = "qwen/qwen3.8-27b", 
         MARSSystem(model=gen_model),
     ]
 
-    out_file = MARS_DIR / "evaluation" / "results" / "quality_experiment_results.json"
-    checkpoint_file = MARS_DIR / "evaluation" / "results" / "quality_experiment_checkpoint.json"
+    out_file = MARS_DIR / "evaluation" / "results" / output_filename
+    checkpoint_file = MARS_DIR / "evaluation" / "results" / checkpoint_filename
 
     # Resume from checkpoint if it exists
     results: Dict[str, List[Dict[str, Any]]] = {s.NAME: [] for s in systems}
@@ -170,9 +182,9 @@ def run_experiment(sample_size: int = 8, judge_model: str = "qwen/qwen3.8-27b", 
 
     print("=" * 100)
 
-    out_file = MARS_DIR / "evaluation" / "results" / "quality_experiment_results.json"
+    out_file.parent.mkdir(parents=True, exist_ok=True)
     with open(out_file, "w") as f:
-        json.dump({"summary": summary, "per_system": results, "meta": {"sample_size": len(sample), "generator": gen_model, "judge": judge_model}}, f, indent=2, default=str)
+        json.dump({"summary": summary, "per_system": results, "meta": {"sample_size": len(sample), "offset_per_dept": offset_per_dept, "generator": gen_model, "judge": judge_model}}, f, indent=2, default=str)
     print(f"Results saved to {out_file}")
     # Clean up checkpoint
     if checkpoint_file.exists():
@@ -180,4 +192,26 @@ def run_experiment(sample_size: int = 8, judge_model: str = "qwen/qwen3.8-27b", 
     return summary
 
 if __name__ == "__main__":
-    run_experiment(sample_size=20)
+    parser = argparse.ArgumentParser(description="MARS Decision Quality Experiment")
+    parser.add_argument("--sample-size", type=int, default=20, help="Number of cases to sample")
+    parser.add_argument("--offset", type=int, default=0, help="Offset per department")
+    parser.add_argument("--batch", type=int, default=None, help="Batch index (e.g. 2 for cases 21-40)")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint JSON filename")
+    args = parser.parse_args()
+
+    offset = args.offset
+    out_name = args.output or "quality_experiment_results.json"
+    ckpt_name = args.checkpoint or "quality_experiment_checkpoint.json"
+
+    if args.batch == 2:
+        offset = 5
+        out_name = args.output or "quality_experiment_results_batch2.json"
+        ckpt_name = args.checkpoint or "quality_experiment_checkpoint_batch2.json"
+
+    run_experiment(
+        sample_size=args.sample_size,
+        offset_per_dept=offset,
+        output_filename=out_name,
+        checkpoint_filename=ckpt_name,
+    )

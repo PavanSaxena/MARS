@@ -22,26 +22,26 @@
 ## 2. Generation Quality & G-Eval Dual Benchmark
 
 > **Standard:** G-Eval (Liu et al., EMNLP 2023) · RAGAS (Es et al., EACL 2024) · ROUGE (Lin, 2004)  
-> **Evaluation Sample:** 20 stratified cases balanced across all 4 departments (Finance, Operations, R&D, Legal) and 2023-2026 chronological decisions  
+> **Evaluation Sample:** 40 stratified cases balanced across all 4 departments (Finance, Operations, R&D, Legal) and 2023-2026 chronological decisions  
 > **Generator Model:** `groq:qwen/qwen3.8-27b`  
 > **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Chain-of-Thought Rubric)  
-> **Statistical Protocol:** Paired Bootstrap Resampling ($N=10,000$, $\alpha=0.01$)
+> **Statistical Protocol:** Paired Bootstrap Resampling ($N=10,000$, $\alpha=0.01$) & Wilcoxon Signed-Rank Test
 
 ### 2.1 Frontier G-Eval Multi-Dimensional Scores (1-5 Scale)
 
-| System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval | vs. G1 p-value |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 2.800 | 2.700 | 2.200 | 3.350 | 2.763 | — |
-| Baseline G2: Naive RAG                     | 3.200 | 2.800 | 2.000 | 3.050 | 2.763 | — |
-| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **4.300** | **4.950** | **4.000** | **4.400** | **4.412** | **$p < 0.0001$** |
+| System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval | vs. G1 p-value | vs. G2 p-value |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Baseline G1: Zero-Shot LLM                 | 2.775 | 2.525 | 2.075 | 3.225 | 2.650 | — | — |
+| Baseline G2: Naive RAG                     | 3.325 | 2.600 | 2.125 | 3.050 | 2.775 | — | — |
+| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **4.525** | **4.900** | **4.325** | **4.475** | **4.556** | **$p = 3.23 \times 10^{-8}$** | **$p = 1.20 \times 10^{-7}$** |
 
 ### 2.2 Deterministic NLP & Precedent Grounding
 
 | System | Semantic Similarity | Mean Citations | Valid Citations | Citation Validity % | Hallucination Rate |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 0.509 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
-| Baseline G2: Naive RAG                     | 0.566 | 3.60 | 3.60 | 100.0% | 0.0% |
-| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **0.609** | **4.65** | **4.65** | **100.0%** | **0.0%** |
+| Baseline G1: Zero-Shot LLM                 | 0.499 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
+| Baseline G2: Naive RAG                     | 0.557 | 3.23 | 3.23 | 92.5% | 7.5% |
+| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **0.601** | **5.05** | **5.03** | **99.6%** | **0.4%** |
 
 ---
 
