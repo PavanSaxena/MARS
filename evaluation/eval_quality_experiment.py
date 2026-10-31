@@ -30,6 +30,9 @@ from evaluation.dataset import load_cases, split_cases, load_verified_dataset
 from evaluation.eval_generation import (
     ZeroShotLLMSystem,
     NaiveRAGSystem,
+    MultiPersonaSystem,
+    HybridRAGSystem,
+    ZeroShotCoTSystem,
     MARSSystem,
     frontier_geval_score,
     calculate_deterministic_metrics,
@@ -45,12 +48,18 @@ def run_experiment(
     gen_model: str = "groq:qwen/qwen3.8-27b",
     output_filename: str = "quality_experiment_results.json",
     checkpoint_filename: str = "quality_experiment_checkpoint.json",
+    systems_to_run: Optional[List[str]] = None,
+    preseed_file: Optional[str] = None,
 ):
     print("=" * 90)
     print("MARS DECISION QUALITY EXPERIMENTAL RUN")
     print(f"Generator Model: {gen_model} | Frontier Judge: {judge_model}")
     print(f"Sample Size: {sample_size} | Offset Per Dept: {offset_per_dept}")
     print(f"Output File: {output_filename} | Checkpoint: {checkpoint_filename}")
+    if systems_to_run:
+        print(f"Active Systems Filter: {systems_to_run}")
+    if preseed_file:
+        print(f"Pre-seed Source: {preseed_file}")
     print("=" * 90)
 
     # Load verified dataset and pick a balanced stratified test sample
@@ -85,26 +94,66 @@ def run_experiment(
         docs_text, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
     )
 
-    systems = [
-        ZeroShotLLMSystem(model=gen_model),
-        NaiveRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model),
-        MARSSystem(model=gen_model),
-    ]
+    systems_registry = {
+        "G1": ZeroShotLLMSystem(model=gen_model),
+        "G2": NaiveRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model),
+        "G3": MultiPersonaSystem(model=gen_model),
+        "G4": HybridRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model),
+        "G5": ZeroShotCoTSystem(model=gen_model),
+        "MARS": MARSSystem(model=gen_model),
+    }
+
+    if systems_to_run:
+        systems = []
+        for s in systems_to_run:
+            s_clean = s.strip().upper()
+            if s_clean in systems_registry:
+                systems.append(systems_registry[s_clean])
+            elif s_clean == "ALL":
+                systems = list(systems_registry.values())
+                break
+    else:
+        systems = [
+            systems_registry["G1"],
+            systems_registry["G2"],
+            systems_registry["MARS"],
+        ]
 
     out_file = MARS_DIR / "evaluation" / "results" / output_filename
     checkpoint_file = MARS_DIR / "evaluation" / "results" / checkpoint_filename
 
-    # Resume from checkpoint if it exists
-    results: Dict[str, List[Dict[str, Any]]] = {s.NAME: [] for s in systems}
+    # Initialize results mapping
+    results: Dict[str, List[Dict[str, Any]]] = {}
     evaluated_pairs: set = set()  # (case_id, sys_name) pairs already done
+
+    # Pre-seed from existing results file if provided
+    if preseed_file:
+        preseed_path = MARS_DIR / "evaluation" / "results" / preseed_file
+        if preseed_path.exists():
+            try:
+                ps_data = json.loads(preseed_path.read_text())
+                results = ps_data.get("per_system", {})
+                for sys_name, recs in results.items():
+                    for r in recs:
+                        evaluated_pairs.add((r["case_id"], sys_name))
+                print(f"[PRESEED] Pre-seeded {len(evaluated_pairs)} evaluations from {preseed_file}")
+            except Exception as e:
+                print(f"[WARN] Could not pre-seed from {preseed_file}: {e}")
+
+    # Ensure active systems are present in results dict
+    for s in systems:
+        if s.NAME not in results:
+            results[s.NAME] = []
+
+    # Resume from checkpoint if it exists
     if checkpoint_file.exists():
         try:
             ckpt = json.loads(checkpoint_file.read_text())
-            results = ckpt.get("per_system", results)
-            for sys_name, recs in results.items():
+            for sys_name, recs in ckpt.get("per_system", {}).items():
+                results[sys_name] = recs
                 for r in recs:
                     evaluated_pairs.add((r["case_id"], sys_name))
-            print(f"[RESUME] Loaded checkpoint: {len(evaluated_pairs)} evaluations already done.")
+            print(f"[RESUME] Loaded checkpoint: {len(evaluated_pairs)} evaluations now recorded.")
         except Exception as e:
             print(f"[WARN] Could not load checkpoint: {e}")
 
@@ -198,6 +247,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch", type=int, default=None, help="Batch index (e.g. 2 for cases 21-40)")
     parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint JSON filename")
+    parser.add_argument("--systems", type=str, default=None, help="Comma-separated systems to evaluate: G1,G2,G3,G4,G5,MARS,ALL")
+    parser.add_argument("--preseed", type=str, default=None, help="JSON file in evaluation/results to pre-seed already evaluated systems")
     args = parser.parse_args()
 
     offset = args.offset
@@ -209,9 +260,13 @@ if __name__ == "__main__":
         out_name = args.output or "quality_experiment_results_batch2.json"
         ckpt_name = args.checkpoint or "quality_experiment_checkpoint_batch2.json"
 
+    sys_list = [s.strip() for s in args.systems.split(",")] if args.systems else None
+
     run_experiment(
         sample_size=args.sample_size,
         offset_per_dept=offset,
         output_filename=out_name,
         checkpoint_filename=ckpt_name,
+        systems_to_run=sys_list,
+        preseed_file=args.preseed,
     )

@@ -358,6 +358,130 @@ class NaiveRAGSystem:
 
 
 # ---------------------------------------------------------------------------
+# Baseline G3: Single-Agent Multi-Persona (Roleplay Council)
+# ---------------------------------------------------------------------------
+class MultiPersonaSystem:
+    """Baseline G3: Multi-Persona Roleplay Council in a Single LLM Prompt (Wang et al. ICLR 2024; Du et al. ICML 2024)."""
+
+    NAME = "Baseline G3: Single-Agent Multi-Persona"
+
+    def __init__(self, model: str = GENERATION_MODEL):
+        self.model = model
+
+    def run(self, case: Dict[str, Any]) -> str:
+        prompt = (
+            "You are an Executive Leadership Committee comprising four department leaders:\n"
+            "1. VP of Finance (focus: capital allocation, gross margins, cash flow runway)\n"
+            "2. Head of Operations (focus: supply chain continuity, factory throughput, supplier SLAs)\n"
+            "3. Chief Technology Officer / R&D (focus: technical feasibility, product roadmap, engineering)\n"
+            "4. General Counsel / Legal (focus: regulatory compliance, antitrust, contractual exposure)\n\n"
+            "Evaluate the following strategic corporate decision from all four perspectives simultaneously:\n\n"
+            f"Primary Department: {case.get('department', 'Unknown')}\n"
+            f"Decision Title: {case.get('decision_title', '')}\n"
+            f"Description: {case.get('decision_description', '')}\n"
+            f"Context: {case.get('situation_context', '')}\n\n"
+            "Instructions:\n"
+            "Part 1: Departmental Deliberation — Have each of the 4 executives state their department's position, key priorities, and objections.\n"
+            "Part 2: Executive Synthesis & Verdict — Reconcile the competing departmental trade-offs into an agreed corporate recommendation, citing key risks and contingency measures.\n"
+            "Keep the response structured, rigorous, and actionable."
+        )
+        llm = _get_gen_llm(self.model)
+        return _gen_invoke_with_retry(llm, prompt, self.model)
+
+
+# ---------------------------------------------------------------------------
+# Baseline G4: Hybrid RAG Single-Agent (Advanced RAG)
+# ---------------------------------------------------------------------------
+class HybridRAGSystem:
+    """Baseline G4: Hybrid BM25 + Dense Vector + MMR Diversity in a Single LLM (Thakur et al. NeurIPS 2021; Gao et al. 2023)."""
+
+    NAME = "Baseline G4: Hybrid RAG Single-Agent"
+
+    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL):
+        self.corpus = corpus
+        self.corpus_embeddings = corpus_embeddings
+        self.model = model
+        from evaluation.eval_retrieval import MARSHybridRetriever
+        self.retriever = MARSHybridRetriever(corpus=corpus, corpus_embeddings=corpus_embeddings)
+
+    def _retrieve(self, case: Dict[str, Any], k: int = 5) -> List[Dict[str, Any]]:
+        query = (
+            f"Decision Title: {case.get('decision_title', '')} "
+            f"Description: {case.get('decision_description', '')} "
+            f"Department: {case.get('department', '')}"
+        )
+        q_emb = encoder.encode([query], normalize_embeddings=True, convert_to_numpy=True)[0]
+        dept = case.get("department", "")
+        as_of = case.get("decision_date")
+        cross_impact = case.get("cross_department_impact")
+        return self.retriever.retrieve(
+            query=query,
+            query_emb=q_emb,
+            target_department=dept,
+            k=k,
+            as_of_date=as_of,
+            cross_dept_impact=cross_impact,
+        )
+
+    def run(self, case: Dict[str, Any]) -> str:
+        retrieved = self._retrieve(case, k=5)
+        blocks = []
+        for i, doc in enumerate(retrieved, 1):
+            blocks.append(
+                f"[Case {i} - ID: {doc.get('case_id', '')}] {doc.get('decision_title', '')} ({doc.get('department', '')})\n"
+                f"Outcome: {doc.get('outcome_label', 'unknown')}\n"
+                f"Rationale: {doc.get('decision_rationale', '')}"
+            )
+        context_str = "\n\n".join(blocks)
+
+        prompt = (
+            "You are a senior corporate decision advisory intelligence system. "
+            "Use the following temporally filtered, cross-departmental precedent cases to ground your recommendation.\n\n"
+            f"=== RETRIEVED PRECEDENT CASES (Hybrid BM25 + Dense + MMR Diversity) ===\n{context_str}\n\n"
+            f"=== STRATEGIC DECISION UNDER EVALUATION ===\n"
+            f"Department: {case.get('department', 'Unknown')}\n"
+            f"Decision Title: {case.get('decision_title', '')}\n"
+            f"Description: {case.get('decision_description', '')}\n"
+            f"Context: {case.get('situation_context', '')}\n\n"
+            "Provide:\n"
+            "1. Recommended actions (explicitly citing precedent case IDs)\n"
+            "2. Critical risks and historical failure modes to guard against\n"
+            "3. Cross-departmental operational and compliance implications\n"
+            "Keep your response concise, evidence-grounded, and actionable."
+        )
+        llm = _get_gen_llm(self.model)
+        return _gen_invoke_with_retry(llm, prompt, self.model)
+
+
+# ---------------------------------------------------------------------------
+# Baseline G5: Zero-Shot Chain-of-Thought (Wei et al. NeurIPS 2022)
+# ---------------------------------------------------------------------------
+class ZeroShotCoTSystem:
+    """Baseline G5: Zero-Shot Chain-of-Thought (CoT) Prompting (Wei et al. 2022; Kojima et al. 2022)."""
+
+    NAME = "Baseline G5: Zero-Shot CoT"
+
+    def __init__(self, model: str = GENERATION_MODEL):
+        self.model = model
+
+    def run(self, case: Dict[str, Any]) -> str:
+        prompt = (
+            "You are a corporate decision advisor. Analyze the following business dilemma using rigorous step-by-step reasoning.\n\n"
+            f"Department: {case.get('department', 'Unknown')}\n"
+            f"Decision Title: {case.get('decision_title', '')}\n"
+            f"Description: {case.get('decision_description', '')}\n"
+            f"Context: {case.get('situation_context', '')}\n\n"
+            "Let's think step by step:\n"
+            "Step 1: Deconstruct the primary dilemma, strategic objectives, and immediate operational triggers.\n"
+            "Step 2: Identify conflicting priorities between different business units (Finance capital, Operations throughput, R&D technical constraints, Legal compliance).\n"
+            "Step 3: Evaluate potential risks, vulnerabilities, and negative outcome modes if executed without safeguards.\n"
+            "Step 4: Formulate a final structured synthesis with specific recommended actions, risk hedges, and cross-departmental coordination steps."
+        )
+        llm = _get_gen_llm(self.model)
+        return _gen_invoke_with_retry(llm, prompt, self.model)
+
+
+# ---------------------------------------------------------------------------
 # MARS System (full pipeline)
 # ---------------------------------------------------------------------------
 class MARSSystem:

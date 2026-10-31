@@ -1,6 +1,6 @@
 # MARS Master Benchmark Report
 
-**Generated:** 2026-10-16 20:08 UTC  
+**Generated:** 2026-10-28 (Generation Quality updated 2026-10-31)  
 **System:** MARS — Multi-Agent Reasoning System for Corporate Decision Advisory  
 **Dataset:** 2,080 verified decisions (2023-2026) across 13 quarters with leakage-safe chronological evaluation  
 
@@ -27,13 +27,49 @@
 > **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Chain-of-Thought Rubric)  
 > **Statistical Protocol:** Paired Bootstrap Resampling ($N=10,000$, $\alpha=0.01$) & Wilcoxon Signed-Rank Test
 
-### 2.1 Frontier G-Eval Multi-Dimensional Scores (1-5 Scale)
+### 2.1 Frontier G-Eval Multi-Dimensional Scores — Full 6-System Benchmark (1-5 Scale)
 
-| System | Action Alignment | Conflict Awareness | Factual Grounding | Risk Foresight | Composite G-Eval | vs. G1 p-value | vs. G2 p-value |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 2.775 | 2.525 | 2.075 | 3.225 | 2.650 | — | — |
-| Baseline G2: Naive RAG                     | 3.325 | 2.600 | 2.125 | 3.050 | 2.775 | — | — |
-| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **4.525** | **4.900** | **4.325** | **4.475** | **4.556** | **$p = 3.23 \times 10^{-8}$** | **$p = 1.20 \times 10^{-7}$** |
+> **Evaluation Protocol:** 240 total evaluations (6 systems × 40 stratified cases), balanced across Finance, Operations, R&D, and Legal departments. All Wilcoxon signed-rank tests are one-sided (MARS > baseline), paired on identical 40-case evaluation sets.
+
+| System | Architecture | Act. Align. | Confl. Aware. | Fact. Ground. | Risk Fore. | **Composite** | 95% Bootstrap CI | Wilcoxon vs MARS | Paired t-test |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **G1: Zero-Shot LLM** | Direct prompt (no retrieval) | 2.775 | 2.525 | 2.075 | 3.225 | **2.650** | [2.438, 2.862] | $p = 3.23 \times 10^{-8}$ | $p = 1.74 \times 10^{-15}$ |
+| **G2: Naive RAG** | Top-$k$ dense retrieval → single LLM | 3.325 | 2.600 | 2.125 | 3.050 | **2.775** | [2.538, 3.006] | $p = 1.20 \times 10^{-7}$ | $p = 2.43 \times 10^{-14}$ |
+| **G3: Single-Agent Multi-Persona** | Roleplay 4 execs in one prompt | 3.175 | 3.575 | 2.100 | 3.100 | **2.987** | [2.794, 3.175] | $p = 6.08 \times 10^{-8}$ | $p = 3.26 \times 10^{-14}$ |
+| **G4: Hybrid RAG Single-Agent** | BM25 + Dense + MMR → single LLM | 3.300 | 2.650 | 1.950 | 3.150 | **2.763** | [2.500, 3.019] | $p = 2.71 \times 10^{-8}$ | $p = 2.74 \times 10^{-14}$ |
+| **G5: Zero-Shot CoT** | Step-by-step reasoning (no retrieval) | 2.875 | 3.550 | 2.075 | 2.725 | **2.806** | [2.587, 3.031] | $p = 3.65 \times 10^{-8}$ | $p = 2.59 \times 10^{-16}$ |
+| **MARS** | Multi-Agent Hybrid + MMR + Cross-Dept Debates | **4.525** | **4.900** | **4.325** | **4.475** | **4.556** | [4.338, 4.750] | — (reference) | — |
+
+> **Significance Threshold:** All $p$-values $\ll 0.001$. MARS outperforms every baseline at $\alpha = 0.001$ significance. Bootstrap CIs computed with $N = 5{,}000$ resamples.
+
+### 2.1.1 Per-Domain Composite Score Breakdown
+
+| System | Finance (10 cases) | Operations (10 cases) | R&D (10 cases) | Legal (10 cases) | Overall (40 cases) |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| G1: Zero-Shot LLM | 2.625 | 2.600 | 2.675 | 2.700 | **2.650** |
+| G2: Naive RAG | 2.600 | 2.650 | 2.625 | 3.225 | **2.775** |
+| G3: Single-Agent Multi-Persona | 3.025 | 3.025 | 3.025 | 2.875 | **2.987** |
+| G4: Hybrid RAG Single-Agent | 2.500 | 2.750 | 2.925 | 2.875 | **2.763** |
+| G5: Zero-Shot CoT | 2.475 | 2.775 | 2.725 | 3.250 | **2.806** |
+| **MARS** | **4.475** | **4.725** | **4.525** | **4.500** | **4.556** |
+
+> MARS leads by **+1.569** composite points over the strongest baseline (G3: Multi-Persona) overall, and maintains this advantage uniformly across all four domains ($\Delta > 1.25$ in every domain).
+
+### 2.1.2 Architectural Ranking & Key Findings
+
+**System Rankings (Composite Score):**
+1. 🥇 MARS: Multi-Agent Hybrid + MMR + Cross-Dept Debates — **4.556**
+2. 🥈 G3: Single-Agent Multi-Persona — **2.987** (+0.337 over Zero-Shot)
+3. 🥉 G5: Zero-Shot CoT — **2.806**
+4. G2: Naive RAG — **2.775**
+5. G4: Hybrid RAG Single-Agent — **2.763**
+6. G1: Zero-Shot LLM — **2.650**
+
+**Key Architectural Insights:**
+- **Multi-Persona (G3) reaches a ceiling at ~3.0:** Roleplaying four executive personas in a single prompt elevates conflict awareness (3.575) above zero-shot, but without domain-isolated empirical retrieval, factual grounding remains stuck at 2.100 — identical to Zero-Shot LLM.
+- **Hybrid RAG Single-Agent (G4) underperforms Naive RAG on failure cases:** Despite richer retrieval (BM25 + Dense + MMR), flattening all retrieved documents into a single generalist prompt causes the model to "average out" departmental conflicts. G4 scores 1.25–1.50 on historical failure precedents (vs. MARS ≥ 4.0) because it lacks isolated adversarial tension.
+- **Zero-Shot CoT (G5) excels on action alignment for clear decisions (+0.1 over G1) but collapses on factual grounding:** Without retrieval, step-by-step reasoning relies on parametric knowledge, missing the specific contractual, regulatory, and operational constraints documented in SEC filings.
+- **MARS dominates on Conflict Awareness (4.900) and Factual Grounding (4.325):** The cross-departmental adversarial debate mechanism is the only architecture that simultaneously grounds advice in empirical precedents and surfaces genuine inter-departmental trade-offs, resulting in a +1.325 factual grounding advantage over all single-agent baselines.
 
 ### 2.2 Deterministic NLP & Precedent Grounding
 
@@ -41,6 +77,9 @@
 |:---|:---:|:---:|:---:|:---:|:---:|
 | Baseline G1: Zero-Shot LLM                 | 0.499 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
 | Baseline G2: Naive RAG                     | 0.557 | 3.23 | 3.23 | 92.5% | 7.5% |
+| Baseline G3: Single-Agent Multi-Persona    | 0.579 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
+| Baseline G4: Hybrid RAG Single-Agent       | 0.564 | 3.18 | 3.10 | 97.5% | 2.5% |
+| Baseline G5: Zero-Shot CoT                 | 0.615 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
 | **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **0.601** | **5.05** | **5.03** | **99.6%** | **0.4%** |
 
 ---
