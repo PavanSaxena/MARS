@@ -99,12 +99,14 @@ FRONTIER_JUDGE_MODEL = "qwen/qwen3.8-27b"  # Groq — 27B, free tier, confirmed 
 _gen_llm_cache: Dict[str, Any] = {}
 _judge_llm_cache: Dict[str, Any] = {}
 
-
 def _get_groq_key() -> str:
-    """Return the Groq API key from the environment (set via backend/.env)."""
-    key = os.environ.get("GROQ_API_KEY", "")
+    """Return the single active Groq API key from environment."""
+    key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("GROQ_API_KEY is not set. Please add it to backend/.env.")
+        raw = os.environ.get("GROQ_API_KEYS", "")
+        key = raw.split(",")[0].strip() if raw else ""
+    if not key:
+        raise RuntimeError("GROQ_API_KEY / GROQ_API_KEYS is not set.")
     return key
 
 # Pre-initialise ROUGE scorer & sentence encoder
@@ -112,68 +114,68 @@ rouge = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=Tru
 encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
-def _get_gen_llm(model_id: str = GENERATION_MODEL):
+def _get_gen_llm(model_id: str = GENERATION_MODEL, api_key: Optional[str] = None):
     """Return generation LLM (Ollama, Groq, or OpenRouter)."""
-    if model_id not in _gen_llm_cache:
+    key = api_key or _get_groq_key()
+    cache_key = f"{model_id}::{key[:12] if key else ''}"
+    if cache_key not in _gen_llm_cache:
         provider = model_id.split(":", 1)[0] if ":" in model_id else ""
         model_name = model_id.split(":", 1)[1] if ":" in model_id else model_id
 
         if provider == "openrouter":
             from langchain_openai import ChatOpenAI
-            api_key = os.environ.get("OPENROUTER_API_KEY", "")
-            _gen_llm_cache[model_id] = ChatOpenAI(
+            k = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+            _gen_llm_cache[cache_key] = ChatOpenAI(
                 model=model_name,
                 base_url="https://openrouter.ai/api/v1",
-                api_key=api_key,
+                api_key=k,
                 max_retries=5,
                 temperature=0.2,
             )
         elif provider == "groq":
             from langchain_openai import ChatOpenAI
-            api_key = _get_groq_key()
-            _gen_llm_cache[model_id] = ChatOpenAI(
+            _gen_llm_cache[cache_key] = ChatOpenAI(
                 model=model_name,
                 base_url="https://api.groq.com/openai/v1",
-                api_key=api_key,
+                api_key=key,
                 max_retries=5,
                 temperature=0.2,
                 max_tokens=600,
             )
         elif provider == "ollama":
             from langchain.chat_models import init_chat_model
-            _gen_llm_cache[model_id] = init_chat_model(model_id, num_ctx=8192, max_retries=3)
+            _gen_llm_cache[cache_key] = init_chat_model(model_id, num_ctx=8192, max_retries=3)
         else:
             from langchain.chat_models import init_chat_model
-            _gen_llm_cache[model_id] = init_chat_model(model_id, max_retries=3)
-    return _gen_llm_cache[model_id]
+            _gen_llm_cache[cache_key] = init_chat_model(model_id, max_retries=3)
+    return _gen_llm_cache[cache_key]
 
 
-def _get_judge_llm(model_id: str = FRONTIER_JUDGE_MODEL):
+def _get_judge_llm(model_id: str = FRONTIER_JUDGE_MODEL, api_key: Optional[str] = None):
     """Return frontier judge LLM (Groq or OpenRouter via OpenAI-compatible API)."""
-    if model_id not in _judge_llm_cache:
+    key = api_key or _get_groq_key()
+    cache_key = f"{model_id}::{key[:12] if key else ''}"
+    if cache_key not in _judge_llm_cache:
         from langchain_openai import ChatOpenAI
         provider = model_id.split(":", 1)[0] if ":" in model_id else ""
         model_name = model_id.split(":", 1)[1] if ":" in model_id else model_id
 
         if provider == "openrouter":
             base_url = "https://openrouter.ai/api/v1"
-            api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        elif provider == "groq" or not provider:
-            base_url = "https://api.groq.com/openai/v1"
-            api_key = _get_groq_key()
+            k = api_key or os.environ.get("OPENROUTER_API_KEY", "")
         else:
             base_url = "https://api.groq.com/openai/v1"
-            api_key = _get_groq_key()
+            k = key
 
-        _judge_llm_cache[model_id] = ChatOpenAI(
+        _judge_llm_cache[cache_key] = ChatOpenAI(
             model=model_name,
             base_url=base_url,
-            api_key=api_key,
+            api_key=k,
             max_retries=6,
             temperature=0.0,
             max_tokens=600,
         )
-    return _judge_llm_cache[model_id]
+    return _judge_llm_cache[cache_key]
 
 
 def _normalize_content(content: Any) -> str:
@@ -236,9 +238,7 @@ def _extract_retry_wait(err: Any, default: float = 30.0) -> float:
 
 
 def _gen_invoke_with_retry(llm: Any, prompt: str, model_id: str = "") -> str:
-    """Invoke generator LLM, retrying on TPM/RPM limits, halting on daily limits.
-    Never returns default values. Raises DailyRateLimitExceeded on quota exhaustion.
-    """
+    """Invoke generator LLM, retrying on TPM limits, stopping on daily limits."""
     tpm_attempt = 0
     non_rate_attempts = 0
 
@@ -250,7 +250,6 @@ def _gen_invoke_with_retry(llm: Any, prompt: str, model_id: str = "") -> str:
                 return text
             non_rate_attempts += 1
             if non_rate_attempts <= 3:
-                time.sleep(5)
                 continue
             raise RuntimeError("Generator LLM returned empty response after 3 attempts.")
         except DailyRateLimitExceeded:
@@ -262,14 +261,12 @@ def _gen_invoke_with_retry(llm: Any, prompt: str, model_id: str = "") -> str:
                 raise
             elif _is_per_minute_rate_limit(e):
                 wait = _extract_retry_wait(e, default=30.0 + min(tpm_attempt * 15, 60))
-                print(f"\n    [Generator TPM Rate Limit] Waiting {wait:.1f}s before retry...\n", flush=True)
+                print(f"\n    [Generator TPM] Waiting {wait:.1f}s...\n", flush=True)
                 time.sleep(wait)
                 tpm_attempt += 1
             else:
                 non_rate_attempts += 1
-                if non_rate_attempts <= 3:
-                    time.sleep(5)
-                else:
+                if non_rate_attempts > 3:
                     raise
 
 
@@ -278,28 +275,40 @@ def _gen_invoke_with_retry(llm: Any, prompt: str, model_id: str = "") -> str:
 # Baseline G1: Zero-Shot LLM
 # ---------------------------------------------------------------------------
 class ZeroShotLLMSystem:
-    """Baseline G1: No retrieval. Direct prompt to LLM (Robertson & Zaragoza 2009; Liu et al. 2023)."""
+    """Baseline G1: No retrieval. Direct prompt to LLM (Robertson & Zaragoza 2009; Liu et al. 2023).
+
+    FAIRNESS FIX (2026-10-31): Added all structured case fields (decision_description,
+    quantitative_signals, cross_dept_impact, conflicting_perspectives) that were previously
+    omitted. Fixed situation_context key bug (field is decision_description in the case dict).
+    Upgraded instructions to 4-step CoT parity with G5 to isolate architecture vs. prompt quality.
+    """
 
     NAME = "Baseline G1: Zero-Shot LLM"
 
-    def __init__(self, model: str = GENERATION_MODEL):
+    def __init__(self, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.model = model
+        self.api_key = api_key
 
     def run(self, case: Dict[str, Any]) -> str:
+        quant = case.get("quantitative_signals", "")
+        if isinstance(quant, list):
+            quant = "; ".join(str(s) for s in quant) if quant else ""
         prompt = (
             "You are a corporate decision advisor. "
-            "Provide a structured recommendation for the following business decision.\n\n"
+            "Analyze the following business decision using rigorous step-by-step reasoning.\n\n"
             f"Department: {case.get('department', 'Unknown')}\n"
             f"Decision Title: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}\n\n"
-            "Provide:\n"
-            "1. Recommended actions (2-3 specific steps)\n"
-            "2. Key risks to consider\n"
-            "3. Cross-departmental impacts\n"
-            "Keep your response concise and actionable."
+            f"Quantitative Signals: {quant}\n"
+            f"Cross-Departmental Impact: {case.get('cross_dept_impact', '')}\n"
+            f"Documented Stakeholder Tensions: {case.get('conflicting_perspectives', '')}\n\n"
+            "Let's think step by step:\n"
+            "Step 1: Deconstruct the primary dilemma, strategic objectives, and immediate operational triggers.\n"
+            "Step 2: Identify conflicting priorities between business units (Finance capital, Operations throughput, R&D constraints, Legal compliance), using the documented tensions above.\n"
+            "Step 3: Evaluate potential risks, vulnerabilities, and negative outcome modes if executed without safeguards.\n"
+            "Step 4: Formulate a final structured synthesis with specific recommended actions, risk hedges, and cross-departmental coordination steps."
         )
-        llm = _get_gen_llm(self.model)
+        llm = _get_gen_llm(self.model, api_key=self.api_key)
         return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
@@ -311,10 +320,11 @@ class NaiveRAGSystem:
 
     NAME = "Baseline G2: Naive RAG"
 
-    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL):
+    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.corpus = corpus
         self.corpus_embeddings = corpus_embeddings
         self.model = model
+        self.api_key = api_key
 
     def _retrieve(self, case: Dict[str, Any], k: int = 5) -> List[Dict[str, Any]]:
         query = (
@@ -323,9 +333,23 @@ class NaiveRAGSystem:
             f"Department: {case.get('department', '')}"
         )
         q_emb = encoder.encode([query], normalize_embeddings=True, convert_to_numpy=True)[0]
+        target_cid = case.get("case_id")
+        as_of = case.get("decision_date")
         sims = self.corpus_embeddings @ q_emb
-        top_k = np.argsort(sims)[::-1][:k]
-        return [self.corpus[i] for i in top_k]
+        order = np.argsort(sims)[::-1]
+        retrieved = []
+        for idx in order:
+            doc = self.corpus[idx]
+            # LEAKAGE FIX: Exclude the target case itself to prevent self-retrieval
+            if target_cid and doc.get("case_id") == target_cid:
+                continue
+            # TEMPORAL LEAKAGE FIX: Exclude decisions made after this decision date
+            if as_of and doc.get("decision_date") and doc.get("decision_date") > as_of:
+                continue
+            retrieved.append(doc)
+            if len(retrieved) >= k:
+                break
+        return retrieved
 
     def run(self, case: Dict[str, Any]) -> str:
         retrieved = self._retrieve(case, k=5)
@@ -338,6 +362,9 @@ class NaiveRAGSystem:
             )
         context_str = "\n\n".join(blocks)
 
+        quant = case.get("quantitative_signals", "")
+        if isinstance(quant, list):
+            quant = "; ".join(str(s) for s in quant) if quant else ""
         prompt = (
             "You are a corporate decision advisor. "
             "Use the following precedent cases to inform your recommendation.\n\n"
@@ -346,29 +373,40 @@ class NaiveRAGSystem:
             f"Department: {case.get('department', 'Unknown')}\n"
             f"Decision Title: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}\n\n"
+            f"Quantitative Signals: {quant}\n"
+            f"Cross-Departmental Impact: {case.get('cross_dept_impact', '')}\n"
+            f"Documented Stakeholder Tensions: {case.get('conflicting_perspectives', '')}\n\n"
             "Provide:\n"
-            "1. Recommended actions (grounded in the precedent cases)\n"
-            "2. Key risks (citing relevant precedent cases)\n"
+            "1. Recommended actions (grounded in the precedent cases, citing case IDs)\n"
+            "2. Key risks (citing relevant precedent cases by ID)\n"
             "3. Cross-departmental impacts\n"
             "Keep your response concise and actionable."
         )
-        llm = _get_gen_llm(self.model)
+        llm = _get_gen_llm(self.model, api_key=self.api_key)
         return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
 # ---------------------------------------------------------------------------
-# Baseline G3: Single-Agent Multi-Persona (Roleplay Council)
+# Baseline G2: Single-Agent Multi-Persona (Roleplay Council)
 # ---------------------------------------------------------------------------
 class MultiPersonaSystem:
-    """Baseline G3: Multi-Persona Roleplay Council in a Single LLM Prompt (Wang et al. ICLR 2024; Du et al. ICML 2024)."""
+    """Baseline G2: Multi-Persona Roleplay Council in a Single LLM Prompt (Wang et al. ICLR 2024; Du et al. ICML 2024).
 
-    NAME = "Baseline G3: Single-Agent Multi-Persona"
+    FAIRNESS FIX (2026-10-31): Added all structured case fields including decision_description,
+    quantitative_signals, cross_dept_impact, and — critically — conflicting_perspectives, which
+    directly informs the stakeholder debate. Fixed situation_context key bug.
+    """
 
-    def __init__(self, model: str = GENERATION_MODEL):
+    NAME = "Baseline G2: Single-Agent Multi-Persona"
+
+    def __init__(self, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.model = model
+        self.api_key = api_key
 
     def run(self, case: Dict[str, Any]) -> str:
+        quant = case.get("quantitative_signals", "")
+        if isinstance(quant, list):
+            quant = "; ".join(str(s) for s in quant) if quant else ""
         prompt = (
             "You are an Executive Leadership Committee comprising four department leaders:\n"
             "1. VP of Finance (focus: capital allocation, gross margins, cash flow runway)\n"
@@ -379,28 +417,37 @@ class MultiPersonaSystem:
             f"Primary Department: {case.get('department', 'Unknown')}\n"
             f"Decision Title: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}\n\n"
+            f"Quantitative Signals: {quant}\n"
+            f"Cross-Departmental Impact: {case.get('cross_dept_impact', '')}\n"
+            f"Documented Stakeholder Tensions: {case.get('conflicting_perspectives', '')}\n\n"
             "Instructions:\n"
-            "Part 1: Departmental Deliberation — Have each of the 4 executives state their department's position, key priorities, and objections.\n"
+            "Part 1: Departmental Deliberation — Have each of the 4 executives state their department's position, key priorities, and objections. Ground each position in the quantitative signals and documented stakeholder tensions above.\n"
             "Part 2: Executive Synthesis & Verdict — Reconcile the competing departmental trade-offs into an agreed corporate recommendation, citing key risks and contingency measures.\n"
             "Keep the response structured, rigorous, and actionable."
         )
-        llm = _get_gen_llm(self.model)
+        llm = _get_gen_llm(self.model, api_key=self.api_key)
         return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
 # ---------------------------------------------------------------------------
-# Baseline G4: Hybrid RAG Single-Agent (Advanced RAG)
+# Baseline G3: Hybrid RAG Single-Agent (Advanced RAG)
 # ---------------------------------------------------------------------------
 class HybridRAGSystem:
-    """Baseline G4: Hybrid BM25 + Dense Vector + MMR Diversity in a Single LLM (Thakur et al. NeurIPS 2021; Gao et al. 2023)."""
+    """Baseline G3: Hybrid BM25 + Dense Vector + MMR Diversity in a Single LLM (Thakur et al. NeurIPS 2021; Gao et al. 2023).
 
-    NAME = "Baseline G4: Hybrid RAG Single-Agent"
+    FAIRNESS FIX (2026-10-31): Added all structured case fields (decision_description,
+    quantitative_signals, cross_dept_impact, conflicting_perspectives) to prompt. Fixed
+    situation_context key bug. Also fixed cross_department_impact → cross_dept_impact key
+    in retriever call to match actual case dict schema.
+    """
 
-    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL):
+    NAME = "Baseline G3: Hybrid RAG Single-Agent"
+
+    def __init__(self, corpus: List[Dict[str, Any]], corpus_embeddings: np.ndarray, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.corpus = corpus
         self.corpus_embeddings = corpus_embeddings
         self.model = model
+        self.api_key = api_key
         from evaluation.eval_retrieval import MARSHybridRetriever
         self.retriever = MARSHybridRetriever(corpus=corpus, corpus_embeddings=corpus_embeddings)
 
@@ -413,7 +460,7 @@ class HybridRAGSystem:
         q_emb = encoder.encode([query], normalize_embeddings=True, convert_to_numpy=True)[0]
         dept = case.get("department", "")
         as_of = case.get("decision_date")
-        cross_impact = case.get("cross_department_impact")
+        cross_impact = case.get("cross_dept_impact")  # FIX: was "cross_department_impact" (wrong key)
         return self.retriever.retrieve(
             query=query,
             query_emb=q_emb,
@@ -421,6 +468,7 @@ class HybridRAGSystem:
             k=k,
             as_of_date=as_of,
             cross_dept_impact=cross_impact,
+            target_case_id=case.get("case_id"),
         )
 
     def run(self, case: Dict[str, Any]) -> str:
@@ -434,6 +482,9 @@ class HybridRAGSystem:
             )
         context_str = "\n\n".join(blocks)
 
+        quant = case.get("quantitative_signals", "")
+        if isinstance(quant, list):
+            quant = "; ".join(str(s) for s in quant) if quant else ""
         prompt = (
             "You are a senior corporate decision advisory intelligence system. "
             "Use the following temporally filtered, cross-departmental precedent cases to ground your recommendation.\n\n"
@@ -442,42 +493,55 @@ class HybridRAGSystem:
             f"Department: {case.get('department', 'Unknown')}\n"
             f"Decision Title: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}\n\n"
+            f"Quantitative Signals: {quant}\n"
+            f"Cross-Departmental Impact: {case.get('cross_dept_impact', '')}\n"
+            f"Documented Stakeholder Tensions: {case.get('conflicting_perspectives', '')}\n\n"
             "Provide:\n"
             "1. Recommended actions (explicitly citing precedent case IDs)\n"
             "2. Critical risks and historical failure modes to guard against\n"
             "3. Cross-departmental operational and compliance implications\n"
             "Keep your response concise, evidence-grounded, and actionable."
         )
-        llm = _get_gen_llm(self.model)
+        llm = _get_gen_llm(self.model, api_key=self.api_key)
         return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
 # ---------------------------------------------------------------------------
-# Baseline G5: Zero-Shot Chain-of-Thought (Wei et al. NeurIPS 2022)
+# Baseline G1: Zero-Shot Chain-of-Thought (Wei et al. NeurIPS 2022)
 # ---------------------------------------------------------------------------
 class ZeroShotCoTSystem:
-    """Baseline G5: Zero-Shot Chain-of-Thought (CoT) Prompting (Wei et al. 2022; Kojima et al. 2022)."""
+    """Baseline G1: Zero-Shot Chain-of-Thought (CoT) Prompting (Wei et al. 2022; Kojima et al. 2022).
 
-    NAME = "Baseline G5: Zero-Shot CoT"
+    FAIRNESS FIX (2026-10-31): Added all structured case fields (decision_description,
+    quantitative_signals, cross_dept_impact, conflicting_perspectives). Fixed situation_context
+    key bug. Step 2 now references the documented tensions directly.
+    """
 
-    def __init__(self, model: str = GENERATION_MODEL):
+    NAME = "Baseline G1: Zero-Shot CoT"
+
+    def __init__(self, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.model = model
+        self.api_key = api_key
 
     def run(self, case: Dict[str, Any]) -> str:
+        quant = case.get("quantitative_signals", "")
+        if isinstance(quant, list):
+            quant = "; ".join(str(s) for s in quant) if quant else ""
         prompt = (
             "You are a corporate decision advisor. Analyze the following business dilemma using rigorous step-by-step reasoning.\n\n"
             f"Department: {case.get('department', 'Unknown')}\n"
             f"Decision Title: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}\n\n"
+            f"Quantitative Signals: {quant}\n"
+            f"Cross-Departmental Impact: {case.get('cross_dept_impact', '')}\n"
+            f"Documented Stakeholder Tensions: {case.get('conflicting_perspectives', '')}\n\n"
             "Let's think step by step:\n"
             "Step 1: Deconstruct the primary dilemma, strategic objectives, and immediate operational triggers.\n"
-            "Step 2: Identify conflicting priorities between different business units (Finance capital, Operations throughput, R&D technical constraints, Legal compliance).\n"
+            "Step 2: Identify conflicting priorities between different business units (Finance capital, Operations throughput, R&D technical constraints, Legal compliance), grounding your analysis in the documented stakeholder tensions and quantitative signals above.\n"
             "Step 3: Evaluate potential risks, vulnerabilities, and negative outcome modes if executed without safeguards.\n"
             "Step 4: Formulate a final structured synthesis with specific recommended actions, risk hedges, and cross-departmental coordination steps."
         )
-        llm = _get_gen_llm(self.model)
+        llm = _get_gen_llm(self.model, api_key=self.api_key)
         return _gen_invoke_with_retry(llm, prompt, self.model)
 
 
@@ -489,8 +553,9 @@ class MARSSystem:
 
     NAME = "MARS: Multi-Agent Hybrid + MMR + Cross-Dept"
 
-    def __init__(self, model: str = GENERATION_MODEL):
+    def __init__(self, model: str = GENERATION_MODEL, api_key: Optional[str] = None):
         self.model = model
+        self.api_key = api_key
 
     def run(self, case: Dict[str, Any]) -> str:
         from app.agents.master_agent import run_graph
@@ -500,7 +565,7 @@ class MARSSystem:
             f"Department: {case.get('department', '')}\n"
             f"Decision: {case.get('decision_title', '')}\n"
             f"Description: {case.get('decision_description', '')}\n"
-            f"Context: {case.get('situation_context', '')}"
+            f"Context: {case.get('decision_description', '') or case.get('situation_context', '')}"
         )
 
         tpm_attempt = 0
@@ -524,9 +589,9 @@ class MARSSystem:
                 text = _normalize_content(text).strip()
 
                 if "### ⚠️ Provider Rate Limit Reached" in text or "Rate limit reached" in text:
+                    wait = _extract_retry_wait(text, default=30.0 + min(tpm_attempt * 15, 60))
                     if _is_daily_rate_limit(text):
                         raise DailyRateLimitExceeded(text)
-                    wait = _extract_retry_wait(text, default=30.0 + min(tpm_attempt * 15, 60))
                     print(f"\n    [MARS TPM Rate Limit in output] Waiting {wait:.1f}s before retry...\n", flush=True)
                     time.sleep(wait)
                     tpm_attempt += 1
@@ -538,8 +603,7 @@ class MARSSystem:
                 # Empty result — retry
                 non_rate_attempts += 1
                 if non_rate_attempts <= 3:
-                    print(f"    [MARS warning] Empty response (attempt {non_rate_attempts}/3), retrying in 5s...")
-                    time.sleep(5)
+                    print(f"    [MARS warning] Empty response (attempt {non_rate_attempts}/3), retrying...")
                     continue
                 raise RuntimeError(f"MARS produced empty response after {non_rate_attempts} attempts for case {case.get('case_id')}.")
             except DailyRateLimitExceeded:
@@ -557,8 +621,7 @@ class MARSSystem:
                 else:
                     non_rate_attempts += 1
                     if non_rate_attempts <= 3:
-                        print(f"    [MARS error] #{non_rate_attempts}: {str(e)[:100]} — retrying in 5s...")
-                        time.sleep(5)
+                        print(f"    [MARS error] #{non_rate_attempts}: {str(e)[:100]} — retrying...")
                     else:
                         raise RuntimeError(f"MARS failed on case {case.get('case_id')} after 3 non-rate-limit errors: {e}")
 
@@ -621,7 +684,7 @@ def calculate_deterministic_metrics(
 # ---------------------------------------------------------------------------
 GEVAL_COT_RUBRIC = """/no_think
 You are an expert corporate executive and senior auditor evaluating an AI decision-support system.
-Compare the following AI Recommendation against the Ground-Truth Historical Record from Apple Inc.'s 2023 SEC filings.
+Compare the following AI Recommendation against the Ground-Truth Historical Record from Apple Inc.'s verified corporate disclosures and SEC filings.
 
 === REFERENCE CASE (Ground Truth from SEC Filings) ===
 Department: {department}
@@ -657,7 +720,12 @@ OUTPUT FORMAT: Return ONLY valid JSON in this exact schema:
 }}"""
 
 
-def frontier_geval_score(case: Dict[str, Any], response: str, judge_model: str = FRONTIER_JUDGE_MODEL) -> Dict[str, Any]:
+def frontier_geval_score(
+    case: Dict[str, Any],
+    response: str,
+    judge_model: str = FRONTIER_JUDGE_MODEL,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
     """Score response using frontier LLM with Chain-of-Thought rubric.
     Never returns synthetic default scores in research mode.
     """
@@ -674,7 +742,7 @@ def frontier_geval_score(case: Dict[str, Any], response: str, judge_model: str =
         response=response.strip(),
     )
 
-    judge = _get_judge_llm(judge_model)
+    judge = _get_judge_llm(judge_model, api_key=api_key)
     tpm_attempt = 0
     parse_failures = 0
 
@@ -704,8 +772,7 @@ def frontier_geval_score(case: Dict[str, Any], response: str, judge_model: str =
                 parse_failures += 1
                 if parse_failures >= 10:
                     raise RuntimeError(f"Judge returned non-JSON output after 10 attempts on case {case.get('case_id')}.")
-                print(f"\n    [Judge warning] No JSON in response (attempt {parse_failures}/10), retrying in 10s...")
-                time.sleep(10)
+                print(f"\n    [Judge warning] No JSON in response (attempt {parse_failures}/10), retrying...")
         except DailyRateLimitExceeded:
             raise
         except Exception as e:
@@ -722,9 +789,7 @@ def frontier_geval_score(case: Dict[str, Any], response: str, judge_model: str =
                 parse_failures += 1
                 if parse_failures >= 5:
                     raise RuntimeError(f"Judge failed after 5 non-rate-limit errors on case {case.get('case_id')}: {e}")
-                wait = 8 * min(parse_failures, 5)
-                print(f"\n    [Judge error] #{parse_failures}: {str(e)[:100]} — waiting {wait}s...")
-                time.sleep(wait)
+                print(f"\n    [Judge error] #{parse_failures}: {str(e)[:100]} — retrying...")
 
 
 

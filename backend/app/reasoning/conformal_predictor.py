@@ -86,13 +86,14 @@ class ConformalRiskController:
         """
         self.alpha = alpha
         self.decay_rate = decay_rate
-        # Pre-computed fallback quantiles from historical benchmarks (at alpha=0.05)
+        # Calibrated fallback quantiles from empirical calibration benchmarks (at alpha=0.05, coverage=0.95)
+        # Validated on chronological decision corpus (evaluation/artifacts/calibration_results.json: qhat=0.816)
         self.quantile_cache = default_quantile_cache or {
-            "global": 0.284,
-            "finance": 0.245,
-            "legal": 0.312,
-            "rd": 0.298,
-            "operations": 0.261
+            "global": 0.816,
+            "finance": 0.816,
+            "legal": 0.816,
+            "rd": 0.816,
+            "operations": 0.816,
         }
 
     def calibrate_from_historical_data(
@@ -143,7 +144,7 @@ class ConformalRiskController:
         coverage = round(1.0 - alpha, 3)
 
         # Retrieve calibrated quantile
-        q_hat = self.quantile_cache.get(department, self.quantile_cache.get("global", 0.284))
+        q_hat = self.quantile_cache.get(department, self.quantile_cache.get("global", 0.816))
 
         # Handle zero evidence edge-case
         if cases_count == 0 or point_confidence <= 0.0:

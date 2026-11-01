@@ -6,13 +6,15 @@ Compares:
 """
 
 import argparse
+import concurrent.futures
 import datetime
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 import numpy as np
@@ -50,6 +52,7 @@ def run_experiment(
     checkpoint_filename: str = "quality_experiment_checkpoint.json",
     systems_to_run: Optional[List[str]] = None,
     preseed_file: Optional[str] = None,
+    workers: int = 1,
 ):
     print("=" * 90)
     print("MARS DECISION QUALITY EXPERIMENTAL RUN")
@@ -94,30 +97,38 @@ def run_experiment(
         docs_text, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
     )
 
-    systems_registry = {
-        "G1": ZeroShotLLMSystem(model=gen_model),
-        "G2": NaiveRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model),
-        "G3": MultiPersonaSystem(model=gen_model),
-        "G4": HybridRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model),
-        "G5": ZeroShotCoTSystem(model=gen_model),
-        "MARS": MARSSystem(model=gen_model),
-    }
-
-    if systems_to_run:
-        systems = []
-        for s in systems_to_run:
-            s_clean = s.strip().upper()
-            if s_clean in systems_registry:
-                systems.append(systems_registry[s_clean])
-            elif s_clean == "ALL":
-                systems = list(systems_registry.values())
-                break
+    keys_str = os.environ.get("GROQ_API_KEYS", "")
+    if keys_str:
+        groq_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
     else:
-        systems = [
-            systems_registry["G1"],
-            systems_registry["G2"],
-            systems_registry["MARS"],
-        ]
+        single_k = os.environ.get("GROQ_API_KEY", "")
+        groq_keys = [single_k] if single_k else []
+    groq_keys = [k for k in groq_keys if k]
+    print(f"Loaded {len(groq_keys)} Groq API key(s) in active pool.")
+
+    def build_systems_for_key(api_key: Optional[str] = None) -> List[Any]:
+        registry = {
+            "G1": ZeroShotLLMSystem(model=gen_model, api_key=api_key),
+            "G2": NaiveRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model, api_key=api_key),
+            "G1": ZeroShotCoTSystem(model=gen_model, api_key=api_key),
+            "G2": MultiPersonaSystem(model=gen_model, api_key=api_key),
+            "G3": HybridRAGSystem(corpus=all_cases, corpus_embeddings=corpus_embeddings, model=gen_model, api_key=api_key),
+            "MARS": MARSSystem(model=gen_model, api_key=api_key),
+        }
+        if systems_to_run:
+            sys_list = []
+            for s in systems_to_run:
+                sc = s.strip().upper()
+                if sc in registry:
+                    sys_list.append(registry[sc])
+                elif sc in ("ALL", "LEAN"):
+                    return [registry["G1"], registry["G2"], registry["G3"], registry["MARS"]]
+            return sys_list
+        # Canonical 4-system lean benchmark: Zero-Shot CoT, Multi-Persona, Hybrid RAG, MARS
+        return [registry["G1"], registry["G2"], registry["G3"], registry["MARS"]]
+
+    ref_systems = build_systems_for_key(groq_keys[0] if groq_keys else None)
+    active_sys_names = [s.NAME for s in ref_systems]
 
     out_file = MARS_DIR / "evaluation" / "results" / output_filename
     checkpoint_file = MARS_DIR / "evaluation" / "results" / checkpoint_filename
@@ -141,9 +152,9 @@ def run_experiment(
                 print(f"[WARN] Could not pre-seed from {preseed_file}: {e}")
 
     # Ensure active systems are present in results dict
-    for s in systems:
-        if s.NAME not in results:
-            results[s.NAME] = []
+    for sname in active_sys_names:
+        if sname not in results:
+            results[sname] = []
 
     # Resume from checkpoint if it exists
     if checkpoint_file.exists():
@@ -157,33 +168,46 @@ def run_experiment(
         except Exception as e:
             print(f"[WARN] Could not load checkpoint: {e}")
 
+    checkpoint_lock = threading.Lock()
+
     def _save_checkpoint():
         checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
         checkpoint_file.write_text(json.dumps({"per_system": results}, indent=2, default=str))
 
+    # Identify remaining cases
+    pending_cases: List[Tuple[int, Dict[str, Any]]] = []
     for idx, case in enumerate(sample):
+        cid = case.get("case_id")
+        if any((cid, sname) not in evaluated_pairs for sname in active_sys_names):
+            pending_cases.append((idx, case))
+
+    num_workers = max(1, workers)
+    print(f"Deploying {num_workers} worker(s) for {len(pending_cases)} pending cases ({len(sample) - len(pending_cases)} already done).")
+
+    def process_case(case_idx: int, case: Dict[str, Any], worker_id: int):
         cid = case.get("case_id")
         dept = case.get("department")
         outcome = case.get("outcome_label")
-        title = case.get("decision_title", "")[:50]
-        print(f"\n[{idx+1}/{len(sample)}] Evaluating {cid} ({dept} | {outcome}): {title}")
+        title = case.get("decision_title", "")[:45]
+        # Build systems using dynamic multi-key pool (api_key=None draws round-robin)
+        worker_systems = build_systems_for_key(None)
 
-        for sys_obj in systems:
+        print(f"\n[W{worker_id+1} | Case {case_idx+1}/{len(sample)}] {cid} ({dept} | {outcome}): {title}", flush=True)
+
+        case_records: Dict[str, Dict[str, Any]] = {}
+        for sys_obj in worker_systems:
             sys_name = sys_obj.NAME
-            if (cid, sys_name) in evaluated_pairs:
-                print(f"  -> [SKIP] {sys_name} (already in checkpoint)")
-                continue
-            print(f"  -> Running {sys_name}...", end="", flush=True)
+            with checkpoint_lock:
+                if (cid, sys_name) in evaluated_pairs:
+                    continue
+
             t0 = time.perf_counter()
             try:
                 resp = sys_obj.run(case)
                 latency = (time.perf_counter() - t0) * 1000
-                print(f" done ({latency:.0f}ms). Judging...", end="", flush=True)
-                
                 det = calculate_deterministic_metrics(resp, case, valid_case_ids)
-                geval = frontier_geval_score(case, resp, judge_model=judge_model)
-                print(f" Composite: {geval['composite']:.2f} (Align={geval['action_alignment']}, Confl={geval['conflict_awareness']}, Fact={geval['factual_grounding']}, Risk={geval['risk_foresight']})")
-                
+                geval = frontier_geval_score(case, resp, judge_model=judge_model, api_key=None)
+
                 record = {
                     "case_id": cid,
                     "department": dept,
@@ -193,18 +217,42 @@ def run_experiment(
                     **det,
                     **geval,
                 }
-                results[sys_name].append(record)
-                evaluated_pairs.add((cid, sys_name))
-                _save_checkpoint()  # Save after each successful evaluation
+                case_records[sys_name] = record
+                print(f"  [W{worker_id+1}] {sys_name[:22]} -> Comp: {geval['composite']:.2f} (Align={geval['action_alignment']}, Confl={geval['conflict_awareness']}, Fact={geval['factual_grounding']}, Risk={geval['risk_foresight']})", flush=True)
             except DailyRateLimitExceeded as e:
-                print(f"\n[FATAL] Daily rate limit exceeded: {e}")
-                print(f"Checkpoint safely saved. Please provide a new Groq API key and re-run to resume.")
-                sys.exit(2)
+                print(f"\n[STOP W{worker_id+1}] Daily token limit reached: {e}", flush=True)
+                raise
             except Exception as e:
-                print(f" ERROR: {e}")
+                print(f"  [W{worker_id+1}] ERROR on {sys_name}: {e}", flush=True)
                 import traceback; traceback.print_exc()
 
-            time.sleep(12)  # Respect TPM limit
+        with checkpoint_lock:
+            for sys_name, rec in case_records.items():
+                results[sys_name].append(rec)
+                evaluated_pairs.add((cid, sys_name))
+            _save_checkpoint()
+            completed_cases_count = len({r["case_id"] for r in results.get(active_sys_names[0], [])})
+            print(f"==> Progress: {completed_cases_count}/{len(sample)} cases complete.", flush=True)
+
+    if num_workers > 1 and pending_cases:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(process_case, cidx, case, i % num_workers)
+                for i, (cidx, case) in enumerate(pending_cases)
+            ]
+            for f in concurrent.futures.as_completed(futures):
+                try:
+                    f.result()
+                except DailyRateLimitExceeded:
+                    print("[STOP] Daily token limit reached — saving checkpoint and stopping.")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+    elif pending_cases:
+        try:
+            for i, (cidx, case) in enumerate(pending_cases):
+                process_case(cidx, case, 0)
+        except DailyRateLimitExceeded:
+            print("[STOP] Daily token limit reached — saving checkpoint and stopping.")
 
     # Summarize results
     summary = {}
@@ -235,9 +283,12 @@ def run_experiment(
     with open(out_file, "w") as f:
         json.dump({"summary": summary, "per_system": results, "meta": {"sample_size": len(sample), "offset_per_dept": offset_per_dept, "generator": gen_model, "judge": judge_model}}, f, indent=2, default=str)
     print(f"Results saved to {out_file}")
-    # Clean up checkpoint
-    if checkpoint_file.exists():
+    # Clean up checkpoint only if all cases are completed
+    all_completed = all(len(results.get(sname, [])) >= len(sample) for sname in active_sys_names)
+    if all_completed and checkpoint_file.exists():
         checkpoint_file.unlink()
+    elif checkpoint_file.exists():
+        print(f"Partial run completed: checkpoint kept at {checkpoint_file}")
     return summary
 
 if __name__ == "__main__":
@@ -249,6 +300,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint JSON filename")
     parser.add_argument("--systems", type=str, default=None, help="Comma-separated systems to evaluate: G1,G2,G3,G4,G5,MARS,ALL")
     parser.add_argument("--preseed", type=str, default=None, help="JSON file in evaluation/results to pre-seed already evaluated systems")
+    parser.add_argument("--workers", type=int, default=1, help="Number of worker threads (default 1 for single-key)")
     args = parser.parse_args()
 
     offset = args.offset
@@ -269,4 +321,5 @@ if __name__ == "__main__":
         checkpoint_filename=ckpt_name,
         systems_to_run=sys_list,
         preseed_file=args.preseed,
+        workers=args.workers,
     )

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
@@ -37,7 +38,7 @@ def _normalize_content(content: Any) -> str:
     return str(content)
 
 
-def get_llm(model_id: Optional[str] = None):
+def get_llm(model_id: Optional[str] = None, api_key: Optional[str] = None):
     """
     Return a cached chat model for the given "<provider>:<model>" id (see
     settings.AVAILABLE_MODELS), falling back to settings.DEFAULT_MODEL if
@@ -54,30 +55,36 @@ def get_llm(model_id: Optional[str] = None):
     else:
         resolved = settings.DEFAULT_MODEL
 
+    provider = resolved.split(":", 1)[0] if ":" in resolved else ""
+    model_name = resolved.split(":", 1)[1] if ":" in resolved else resolved
+
+    if provider == "groq":
+        raw = os.environ.get("GROQ_API_KEYS", "")
+        k = api_key or os.environ.get("GROQ_API_KEY") or (raw.split(",")[0].strip() if raw else None)
+        cache_key = f"{resolved}::{k[:12] if k else ''}"
+        if cache_key not in _llm_cache:
+            from langchain_openai import ChatOpenAI
+            _llm_cache[cache_key] = ChatOpenAI(
+                model=model_name,
+                base_url="https://api.groq.com/openai/v1",
+                api_key=k,
+                max_retries=5,
+                max_tokens=600,
+            )
+        return _llm_cache[cache_key]
+
     if resolved not in _llm_cache:
         logger.info("llm_initializing model=%s", resolved)
-        provider = resolved.split(":", 1)[0] if ":" in resolved else ""
-        model_name = resolved.split(":", 1)[1] if ":" in resolved else resolved
         kwargs: Dict[str, Any] = {"max_retries": 10}
 
         if provider == "openrouter":
             from langchain_openai import ChatOpenAI
-            api_key = settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY")
+            ak = settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY")
             _llm_cache[resolved] = ChatOpenAI(
                 model=model_name,
                 base_url="https://openrouter.ai/api/v1",
-                api_key=api_key,
+                api_key=ak,
                 max_retries=5,
-            )
-        elif provider == "groq":
-            from langchain_openai import ChatOpenAI
-            api_key = os.environ.get("GROQ_API_KEY") or settings.GROQ_API_KEY
-            _llm_cache[resolved] = ChatOpenAI(
-                model=model_name,
-                base_url="https://api.groq.com/openai/v1",
-                api_key=api_key,
-                max_retries=5,
-                max_tokens=600,
             )
         elif provider == "ollama":
             kwargs["base_url"] = settings.OLLAMA_BASE_URL
@@ -556,6 +563,39 @@ def _recover_json_tool_error(exc: Exception) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _invoke_with_rate_limit_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """
+    Invoke an LLM call with in-place wait and retry for per-minute rate limits (TPM/ITPM).
+    Re-raises DailyRateLimitExceeded immediately if daily token limit (TPD) is reached.
+    """
+    max_retries = 12
+    for attempt in range(max_retries):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            err_str = str(e)
+            if "tokens per day" in err_str.lower() or "tpd" in err_str.lower():
+                raise e
+            elif "429" in err_str or "rate limit" in err_str.lower() or "too many" in err_str.lower():
+                match = re.search(r"try again in (\d+(?:\.\d+)?)\s*(s|m|h)?", err_str, re.IGNORECASE)
+                if match:
+                    wait_sec = float(match.group(1))
+                    unit = (match.group(2) or "s").lower()
+                    if unit == "m":
+                        wait_sec *= 60
+                    elif unit == "h":
+                        wait_sec *= 3600
+                    wait_sec = max(wait_sec + 2.0, 5.0)
+                else:
+                    wait_sec = 25.0 + min(attempt * 10, 60)
+                logger.warning(f"[Rate Limit] In-place waiting {wait_sec:.1f}s before retry (attempt {attempt+1}/{max_retries})...")
+                print(f"    [Agent TPM Limit] Waiting {wait_sec:.1f}s before retry...", flush=True)
+                time.sleep(wait_sec)
+            else:
+                raise e
+    raise RuntimeError("Exceeded maximum retries for LLM invocation")
+
+
 def _invoke_recovering_json_tool_error(llm_with_tools: Any, messages: Any) -> Any:
     """
     Call llm_with_tools.invoke(messages), transparently recovering from the
@@ -602,7 +642,7 @@ def run_llm_with_tools(
     if not tools:
         logger.info("llm_tool_phase_skipped agent=%s", agent_name)
         logger.info(f"[{agent_name}] Running LLM inference (no tools bound)")
-        response = llm.invoke(prompt)
+        response = _invoke_with_rate_limit_retry(llm.invoke, prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
 
     # tool_choice="auto" is explicit here (langchain's bind_tools default is
@@ -615,11 +655,13 @@ def run_llm_with_tools(
         logger.info(f"[{agent_name}] Running LLM inference with {len(tools)} tools: {[t.name for t in tools]}")
         logger.info("llm_tool_decision_started agent=%s", agent_name)
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
-        ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
+        ai_message = _invoke_with_rate_limit_retry(
+            _invoke_recovering_json_tool_error, llm_with_tools, prompt
+        )
     except Exception as e:
         if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
             logger.warning(f"[{agent_name}] Tool calling not supported by provider ({e}), falling back to direct prompt")
-            response = llm.invoke(prompt)
+            response = _invoke_with_rate_limit_retry(llm.invoke, prompt)
             return _normalize_content(getattr(response, "content", str(response))), [], response
         logger.error(f"[{agent_name}] Error during tool-bound LLM invocation: {e}", exc_info=True)
         raise e
@@ -656,7 +698,7 @@ def run_llm_with_tools(
     # the final structured JSON response rather than attempting another tool call.
     logger.info(f"[{agent_name}] Synthesizing final answer after {len(used_tools)} tool call(s)")
     logger.info("llm_tool_follow_up_started agent=%s", agent_name)
-    final_message = llm.invoke(messages)
+    final_message = _invoke_with_rate_limit_retry(llm.invoke, messages)
     logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
 
@@ -673,27 +715,11 @@ def execute_department_agent(
 
     Handles active department routing gating, case retrieval, tool binding,
     LLM invocation, structured output parsing, and evidence attachment.
-
-    Stagger delays prevent simultaneous ITPM blowout when all 4 agents run in
-    parallel under Groq's 7 000 input-token-per-minute free-tier limit.
-    Finance fires first (0 s), then Operations (15 s), R&D (30 s), Legal (45 s).
-    Override via env var MARS_AGENT_STAGGER_S (set to "0" to disable for paid tiers).
     """
     dept_code = department.lower()
     active_depts = state.get("active_departments")
     if active_depts is not None and dept_code not in active_depts:
         return {output_key: None}
-
-    # --- ITPM stagger: spread parallel agents across time to avoid 429s ---
-    import os as _os
-    _base_stagger = float(_os.environ.get("MARS_AGENT_STAGGER_S", "15"))
-    _stagger_map = {"finance": 0, "operations": 1, "rd": 2, "legal": 3}
-    _stagger_secs = _base_stagger * _stagger_map.get(dept_code, 0)
-    if _stagger_secs > 0:
-        logger.info("agent_stagger agent=%s delay=%.0fs", dept_code, _stagger_secs)
-        import time as _time
-        _time.sleep(_stagger_secs)
-    # -----------------------------------------------------------------------
 
     logger.info("agent_started agent=%s", dept_code)
     messages, query = extract_messages_and_query(state)

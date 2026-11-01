@@ -1,136 +1,183 @@
 # MARS Master Benchmark Report
+**Clean Multi-Agent Decision Advisory Evaluation · Empirical Statistical Inference · Audit-Aligned Findings**
 
-**Generated:** 2026-10-28 (Generation Quality updated 2026-10-31)  
-**System:** MARS — Multi-Agent Reasoning System for Corporate Decision Advisory  
-**Dataset:** 2,080 verified decisions (2023-2026) across 13 quarters with leakage-safe chronological evaluation  
-
----
-
-## 1. Information Retrieval Benchmark
-
-> **Standard:** BEIR (Thakur et al., NeurIPS 2021) · RAGChecker (Ru et al., NeurIPS 2024)  
-> **Corpus:** 2080 historical decisions (full 2023-2026 dataset)
-
-| System | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 | Dept Routing Prec | Cross-Dept Rec | Mean Latency (ms) |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline R1: BM25 Lexical                  | 0.9841 | 0.9957 | 0.9990 | 0.9902 | 1.1956 | 0.9090 | 0.2091 | 10.71 |
-| Baseline R2: Naive Dense Vector            | 0.9889 | 0.9995 | 0.9995 | 0.9940 | 1.1852 | 0.9277 | 0.1615 | 0.18 |
-| MARS: Hybrid + MMR + Cross-Dept            | 0.9990 | 1.0000 | 1.0000 | 0.9995 | 1.1990 | 0.9205 | 0.3462 | 25.28 |
+**Dataset:** Apple Corporate Decision Corpus (2023Q3–2025Q4)  
+**Evaluation Protocol:** 40 Stratified Decisions (10 Finance, 10 Operations, 10 R&D, 10 Legal) · 4 Systems × 40 Cases = 160 Evaluations  
+**Generator Model:** `groq:qwen/qwen3.8-27b` · **Judge Model:** `qwen/qwen3.8-27b` (G-Eval Chain-of-Thought Rubric)  
+**Results File:** `evaluation/results/quality_experiment_results_clean4.json`  
 
 ---
 
-## 2. Generation Quality & G-Eval Dual Benchmark
+> [!IMPORTANT]
+> **Research Audit Notice (2026-11-02):**
+> In alignment with the comprehensive research and code audit (`MARS_audit_vs_research.md` / `claims_registry.json`), this report documents strictly verified, empirical evaluation results. Three legacy claims from prototype iterations (an unsupported "+95.9% Brier improvement", hardcoded "simulated" bootstrap $p=0.0$ / Fleiss' $\kappa=0.5088$, and mathematically impossible retrieval nDCG $>1.0$ from self-retrieval) are formally **retracted** in Section 5. All generation results reported below use target-case exclusion to prevent self-retrieval leakage.
 
-> **Standard:** G-Eval (Liu et al., EMNLP 2023) · RAGAS (Es et al., EACL 2024) · ROUGE (Lin, 2004)  
-> **Evaluation Sample:** 40 stratified cases balanced across all 4 departments (Finance, Operations, R&D, Legal) and 2023-2026 chronological decisions  
-> **Generator Model:** `groq:qwen/qwen3.8-27b`  
-> **Frontier Judge:** `groq:qwen/qwen3.8-27b` (Chain-of-Thought Rubric)  
-> **Statistical Protocol:** Paired Bootstrap Resampling ($N=10,000$, $\alpha=0.01$) & Wilcoxon Signed-Rank Test
+---
 
-### 2.1 Frontier G-Eval Multi-Dimensional Scores — Full 6-System Benchmark (1-5 Scale)
+## 1. Executive Summary & Core Results
 
-> **Evaluation Protocol:** 240 total evaluations (6 systems × 40 stratified cases), balanced across Finance, Operations, R&D, and Legal departments. All Wilcoxon signed-rank tests are one-sided (MARS > baseline), paired on identical 40-case evaluation sets.
+MARS (Multi-Agent Reasoning System) coordinates four parallel department specialists (**Finance, Operations, R&D, Legal**) with hybrid BM25 + dense retrieval, Maximal Marginal Relevance (MMR) diversity reranking, and an adversarial strategic aggregator.
 
-| System | Architecture | Act. Align. | Confl. Aware. | Fact. Ground. | Risk Fore. | **Composite** | 95% Bootstrap CI | Wilcoxon vs MARS | Paired t-test |
-|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **G1: Zero-Shot LLM** | Direct prompt (no retrieval) | 2.775 | 2.525 | 2.075 | 3.225 | **2.650** | [2.438, 2.862] | $p = 3.23 \times 10^{-8}$ | $p = 1.74 \times 10^{-15}$ |
-| **G2: Naive RAG** | Top-$k$ dense retrieval → single LLM | 3.325 | 2.600 | 2.125 | 3.050 | **2.775** | [2.538, 3.006] | $p = 1.20 \times 10^{-7}$ | $p = 2.43 \times 10^{-14}$ |
-| **G3: Single-Agent Multi-Persona** | Roleplay 4 execs in one prompt | 3.175 | 3.575 | 2.100 | 3.100 | **2.987** | [2.794, 3.175] | $p = 6.08 \times 10^{-8}$ | $p = 3.26 \times 10^{-14}$ |
-| **G4: Hybrid RAG Single-Agent** | BM25 + Dense + MMR → single LLM | 3.300 | 2.650 | 1.950 | 3.150 | **2.763** | [2.500, 3.019] | $p = 2.71 \times 10^{-8}$ | $p = 2.74 \times 10^{-14}$ |
-| **G5: Zero-Shot CoT** | Step-by-step reasoning (no retrieval) | 2.875 | 3.550 | 2.075 | 2.725 | **2.806** | [2.587, 3.031] | $p = 3.65 \times 10^{-8}$ | $p = 2.59 \times 10^{-16}$ |
-| **MARS** | Multi-Agent Hybrid + MMR + Cross-Dept Debates | **4.525** | **4.900** | **4.325** | **4.475** | **4.556** | [4.338, 4.750] | — (reference) | — |
+We evaluated MARS against three rigorous, fair baselines receiving identical case information (decision description, quantitative signals, cross-departmental impact, and documented stakeholder tensions) across 40 chronological corporate decision cases.
 
-> **Significance Threshold:** All $p$-values $\ll 0.001$. MARS outperforms every baseline at $\alpha = 0.001$ significance. Bootstrap CIs computed with $N = 5{,}000$ resamples.
+### 1.1 System Architecture Definitions
 
-### 2.1.1 Per-Domain Composite Score Breakdown
+| System ID | Architecture Name | Retrieval | Reasoning Strategy |
+|:---|:---|:---:|:---|
+| **G1** | Baseline G1: Zero-Shot CoT | None | Direct chain-of-thought prompting (Wei et al., 2022) |
+| **G2** | Baseline G2: Single-Agent Multi-Persona | None | Roleplay Executive Council (Finance, Ops, R&D, Legal) in single LLM prompt |
+| **G3** | Baseline G3: Hybrid RAG Single-Agent | BM25 + Dense + MMR ($k=5$) | Single-agent RAG with temporal precedent grounding (target excluded) |
+| **MARS** | Multi-Agent Hybrid + MMR + Cross-Dept | BM25 + Dense + MMR ($k=5$ per dept) | 4 parallel domain agents + strategic governance aggregator |
 
-| System | Finance (10 cases) | Operations (10 cases) | R&D (10 cases) | Legal (10 cases) | Overall (40 cases) |
+### 1.2 Final Multi-Dimensional Quality Scores (40 Cases · 160 Evaluations)
+
+Scores evaluated on a 1–5 G-Eval Likert scale across four decision dimensions:
+- **Action Alignment (ActAlign):** Practical feasibility, specificity, and execution readiness.
+- **Conflict Awareness (ConflAware):** Explicit recognition of cross-departmental trade-offs and tensions.
+- **Factual Grounding (FactGround):** Substantiation by cited historical precedent cases and quantitative signals.
+- **Risk Foresight (RiskFore):** Downstream risk identification and proactive mitigation planning.
+- **Composite Score:** Unweighted arithmetic mean across all four dimensions.
+
+```
+========================================================================================================
+FINAL EXPERIMENTAL QUALITY BENCHMARK SCORES (n=40 Cases, 160 Total Evaluations)
+========================================================================================================
+System                                     | ActAlign | ConflAware | FactGround | RiskFore | Composite
+--------------------------------------------------------------------------------------------------------
+Baseline G1: Zero-Shot CoT                 |    4.025 |      4.900 |      3.075 |    3.450 |     3.862
+Baseline G2: Single-Agent Multi-Persona    |    4.275 |      4.800 |      3.000 |    3.775 |     3.962
+Baseline G3: Hybrid RAG Single-Agent       |    3.475 |      4.500 |      2.500 |    3.800 |     3.569
+MARS: Multi-Agent Hybrid + MMR + Cross-Dept|    4.550 |      4.800 |      4.550 |    4.525 |     4.606
+========================================================================================================
+```
+
+**Key Findings:**
+- **MARS leads all baselines overall:** Achieves a **4.606** composite score, an improvement of **+0.644 points (+16.2%)** over the strongest single-agent baseline (G2 Multi-Persona at 3.962).
+- **Factual Grounding is the primary differentiator:** MARS scores **4.550** vs. 3.075 (G1) and 2.500 (G3), a **+1.475 point advantage ($p < 0.0001$)**. Multi-agent domain isolation ensures that domain-specific citations and data are preserved rather than diluted in a generalist prompt.
+- **Risk Foresight is substantially elevated:** Department specialist agents identify structural, operational, and regulatory failure modes that generalist agents overlook (**4.525** vs. 3.800 for G3, $p = 0.0001$).
+- **Conflict Awareness is uniformly high across architectures:** All systems perform strongly on conflict recognition (4.500–4.900), indicating that when explicitly provided with documented stakeholder tensions, frontier LLMs readily reflect cross-functional trade-offs.
+
+---
+
+## 2. Statistical Inference & Significance Testing
+
+To verify that MARS's observed performance gains are not sample artifacts, we conducted non-parametric paired hypothesis testing and bootstrap resampling.
+
+### 2.1 95% Bootstrap Confidence Intervals (10,000 Resamples)
+
+| System | Mean Composite | 95% Bootstrap CI | CI Width |
+|:---|:---:|:---:|:---:|
+| Baseline G1: Zero-Shot CoT | 3.862 | [3.631, 4.081] | 0.450 |
+| Baseline G2: Single-Agent Multi-Persona | 3.962 | [3.781, 4.138] | 0.356 |
+| Baseline G3: Hybrid RAG Single-Agent | 3.569 | [3.300, 3.831] | 0.531 |
+| **MARS: Multi-Agent System** | **4.606** | **[4.375, 4.812]** | **0.438** |
+
+> **Non-Overlapping Intervals:** The lower bound of the MARS bootstrap interval (4.375) strictly exceeds the upper bound of the strongest baseline (G2 at 4.138), demonstrating that the composite performance gap is statistically robust.
+
+### 2.2 Paired Wilcoxon Signed-Rank Hypothesis Tests (One-Tailed: MARS > Baseline)
+
+| Comparison | Wilcoxon $W$ | $p$-value | Rank-Biserial $r_{rb}$ | Cohen's $d$ | Significance |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| G1: Zero-Shot LLM | 2.625 | 2.600 | 2.675 | 2.700 | **2.650** |
-| G2: Naive RAG | 2.600 | 2.650 | 2.625 | 3.225 | **2.775** |
-| G3: Single-Agent Multi-Persona | 3.025 | 3.025 | 3.025 | 2.875 | **2.987** |
-| G4: Hybrid RAG Single-Agent | 2.500 | 2.750 | 2.925 | 2.875 | **2.763** |
-| G5: Zero-Shot CoT | 2.475 | 2.775 | 2.725 | 3.250 | **2.806** |
-| **MARS** | **4.475** | **4.725** | **4.525** | **4.500** | **4.556** |
+| **MARS > Baseline G1** | 600.0 | $< 0.0001$ | -0.463 | **1.026** | *** ($p < 0.001$) |
+| **MARS > Baseline G2** | 637.0 | $0.0001$ | -0.554 | **0.995** | *** ($p < 0.001$) |
+| **MARS > Baseline G3** | 620.5 | $< 0.0001$ | -0.513 | **1.304** | *** ($p < 0.001$) |
 
-> MARS leads by **+1.569** composite points over the strongest baseline (G3: Multi-Persona) overall, and maintains this advantage uniformly across all four domains ($\Delta > 1.25$ in every domain).
+> Cohen's $d \approx 1.0 - 1.3$ denotes very large practical effect sizes across all three paired comparisons.
 
-### 2.1.2 Architectural Ranking & Key Findings
+### 2.3 Dimension-Specific Statistical Testing (MARS vs. Best Baseline)
 
-**System Rankings (Composite Score):**
-1. 🥇 MARS: Multi-Agent Hybrid + MMR + Cross-Dept Debates — **4.556**
-2. 🥈 G3: Single-Agent Multi-Persona — **2.987** (+0.337 over Zero-Shot)
-3. 🥉 G5: Zero-Shot CoT — **2.806**
-4. G2: Naive RAG — **2.775**
-5. G4: Hybrid RAG Single-Agent — **2.763**
-6. G1: Zero-Shot LLM — **2.650**
-
-**Key Architectural Insights:**
-- **Multi-Persona (G3) reaches a ceiling at ~3.0:** Roleplaying four executive personas in a single prompt elevates conflict awareness (3.575) above zero-shot, but without domain-isolated empirical retrieval, factual grounding remains stuck at 2.100 — identical to Zero-Shot LLM.
-- **Hybrid RAG Single-Agent (G4) underperforms Naive RAG on failure cases:** Despite richer retrieval (BM25 + Dense + MMR), flattening all retrieved documents into a single generalist prompt causes the model to "average out" departmental conflicts. G4 scores 1.25–1.50 on historical failure precedents (vs. MARS ≥ 4.0) because it lacks isolated adversarial tension.
-- **Zero-Shot CoT (G5) excels on action alignment for clear decisions (+0.1 over G1) but collapses on factual grounding:** Without retrieval, step-by-step reasoning relies on parametric knowledge, missing the specific contractual, regulatory, and operational constraints documented in SEC filings.
-- **MARS dominates on Conflict Awareness (4.900) and Factual Grounding (4.325):** The cross-departmental adversarial debate mechanism is the only architecture that simultaneously grounds advice in empirical precedents and surfaces genuine inter-departmental trade-offs, resulting in a +1.325 factual grounding advantage over all single-agent baselines.
-
-### 2.2 Deterministic NLP & Precedent Grounding
-
-| System | Semantic Similarity | Mean Citations | Valid Citations | Citation Validity % | Hallucination Rate |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline G1: Zero-Shot LLM                 | 0.499 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
-| Baseline G2: Naive RAG                     | 0.557 | 3.23 | 3.23 | 92.5% | 7.5% |
-| Baseline G3: Single-Agent Multi-Persona    | 0.579 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
-| Baseline G4: Hybrid RAG Single-Agent       | 0.564 | 3.18 | 3.10 | 97.5% | 2.5% |
-| Baseline G5: Zero-Shot CoT                 | 0.615 | 0.00 | 0.00 | 0.0% | N/A (unreferenced) |
-| **MARS: Multi-Agent Hybrid + MMR + Cross-Dept** | **0.601** | **5.05** | **5.03** | **99.6%** | **0.4%** |
+| Dimension | Best Baseline | MARS Mean | Baseline Mean | $\Delta$ | $p$-value | Significance |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Action Alignment | G2 (Multi-Persona) | 4.550 | 4.275 | +0.275 | $0.0330$ | * ($p < 0.05$) |
+| Conflict Awareness | G1 (Zero-Shot CoT) | 4.800 | 4.900 | -0.100 | $0.7602$ | ns (not significant) |
+| **Factual Grounding** | **G1 (Zero-Shot CoT)** | **4.550** | **3.075** | **+1.475** | **$< 0.0001$** | **\*\*\* ($p < 0.001$)** |
+| **Risk Foresight** | **G3 (Hybrid RAG)** | **4.525** | **3.800** | **+0.725** | **$0.0001$** | **\*\*\* ($p < 0.001$)** |
+| **Composite Score** | **G2 (Multi-Persona)** | **4.606** | **3.962** | **+0.644** | **$0.0001$** | **\*\*\* ($p < 0.001$)** |
 
 ---
 
-## 3. Dynamic Semantic Routing & MultiCorp-QA Generalization
+## 3. Departmental Performance Breakdown
 
-> **Literature Standard:** FinQA (Chen et al., EMNLP 2021) · Multi-Sector Enterprise Precedents  
-> **Dataset Split:** Test Set (480 chronological queries evaluated)  
-> **Micro Precision:** 92.1% · **Micro Recall:** 77.6% · **Micro F1:** 0.8424  
-> **Agent Call Reduction:** 42.7% reduction vs. static 4-agent execution  
-> **Exact Match Rate:** 37.5%
+Evaluating performance across functional domains reveals where multi-agent specialization provides the greatest marginal return:
 
-| Sector | Cases | Avg Precision | Avg Recall | Macro F1 | Exact Match Rate |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| Big Tech / Software            | 4 | 1.000 | 0.500 | 0.667 | 0.250 |
-| Healthcare / Biopharma         | 3 | 0.667 | 0.333 | 0.444 | 0.000 |
-| Clean Energy / Auto            | 3 | 1.000 | 0.429 | 0.600 | 0.000 |
-| Banking / Financial Services   | 2 | 1.000 | 0.500 | 0.667 | 0.000 |
+| Department | Cases | G1: Zero-Shot | G2: Multi-Persona | G3: Hybrid RAG | MARS | MARS Lead vs. Best Baseline |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Finance** | 10 | 3.675 | 3.975 | 3.425 | **4.850** | **+0.875** (vs. G2) |
+| **Operations** | 10 | 3.925 | 3.925 | 3.975 | **4.700** | **+0.725** (vs. G3) |
+| **R&D** | 10 | 3.875 | 3.700 | 3.475 | **4.525** | **+0.650** (vs. G1) |
+| **Legal** | 10 | 3.975 | 4.250 | 3.400 | **4.350** | **+0.100** (vs. G2) |
 
----
-
-## 4. Longitudinal Out-of-Sample Backtesting (2023-2024 -> 2025-2026)
-
-> **Standard:** Bergmeir & Benítez (2012) · Dhingra et al. (TACL 2022) · Lazaridou et al. (NeurIPS 2021)  
-> **Chronological Partition:** Train/Calib = 1280 cases (2023 Q1 - 2024 Q4) · Out-of-Sample Test = 800 cases (2025 Q1 - 2026 Q1)  
-> **Optimization Convergence:** BCE Loss 0.0000 -> 0.0000 (0.0% reduction)
-
-| Method / Configuration | Out-of-Sample Brier | Negative Log-Likelihood (NLL) | ECE | MCE | vs Baseline Improvement |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| Baseline 1: Uniform Weights [0.33, 0.33, 0.33] | 0.096297 | 0.324417 | 0.2499 | 0.5402 | Reference |
-| Baseline 2: Pure Similarity [1.0, 0.0, 0.0] (RAG) | 0.212593 | 0.620649 | 0.0703 | 0.1443 | Standard RAG Proxy |
-| MARS: Calibrated Simplex + Quarterly Decay (λ=0.05) | **0.008669** | **0.079771** | **0.0750** | **0.1602** | **+95.9% Brier vs RAG** |
+### Departmental Insights:
+1. **Finance (+0.875 lead):** Financial decisions require grounding in balance sheet liquidity, gross margins, and capital expenditure constraints. MARS's Finance specialist agent preserves quantitative ratios without letting generalist prose dilute them.
+2. **Operations (+0.725 lead):** Operations decisions require concrete supplier SLAs, yield targets, and logistics contingencies. Isolated retrieval provides concrete operational precedents.
+3. **Legal (+0.100 lead — most competitive baseline):** Legal decisions show the smallest gap between MARS and G2. Well-specified regulatory scenarios (e.g., EU DMA compliance, contractual arbitration) are handled competently by a single-agent multi-persona prompt.
+4. **The "Single-Agent RAG Pathology" (G3 underperformance):** In Finance (3.425) and Legal (3.400), Baseline G3 underperforms even the non-retrieval baselines (G1 and G2). Concatenating 5 retrieved cases across disparate departments into a single prompt creates context distraction, causing the LLM to average out conflicting domain evidence. MARS resolves this by delegating retrieval to domain specialists before strategic synthesis.
 
 ---
 
-## 5. Conformal Risk Guarantees & Statistical Reliability
+## 4. Confidence Calibration & Longitudinal Backtesting
 
-> **Conformal Framework:** Angelopoulos & Bates (2023) · Tibshirani et al. (2019) Transductive Prediction  
-> **Statistical Testing:** Efron & Tibshirani (1994) Paired Bootstrap (N=2,000) · Fleiss' Kappa Multi-Rater Agreement
+> **Reference Artifact:** `evaluation/artifacts/calibration_results.json`  
+> **Evaluation Sample:** 480 held-out test decisions (temporal split: Train/Val = 2023Q1–2024Q4, Test = 2025Q1–2026Q1)
 
-### 5.1 Conformal Policy Directives (Target Coverage: 95.0%, α = 0.05)
+In corporate decision advisory, confidence calibration is essential: when the system provides advice, its expressed confidence must match empirical success probabilities.
 
-- **High Empirical Confidence (0.85):** Policy `PROCEED_AUTONOMOUS` — Conformal Interval: `[0.605, 1.0]`
-- **Low Empirical Confidence (0.35):** Policy `ABSTAIN_FOR_HUMAN_REVIEW` — Conformal Interval: `[0.038, 0.662]`
-- **Zero Precedent Evidence (0.00):** Policy `ABSTAIN_FOR_HUMAN_REVIEW` — Generation Suppressed: `True` (Strict Anti-Hallucination)
+### 4.1 Empirical Calibration Results (Test Set, $N = 480$)
 
-### 5.2 Hypothesis Testing & Inter-Rater Reliability
+| Predictive Method | Brier Score (lower = better) | Negative Log-Likelihood (NLL) | ECE |
+|:---|:---:|:---:|:---:|
+| **Constant Train Base Rate (0.705)** | **0.2040** | **0.5983** | **0.0000** |
+| Dynamic Weighting (Simplex Ablation) | 0.2190 | 0.6470 | 0.0890 |
+| MARS Recency-Weighted ($\lambda = 0.08$) | 0.2251 | 0.7031 | 0.1125 |
+| Standard RAG (Unweighted) | 0.2252 | 0.7036 | 0.1130 |
 
-- **Paired Bootstrap (N=2,000):** Mean Difference: `+0.73`, Empirical `p = 0.00000` (< 0.01), 95% CI `[0.6675, 0.7925]`
-- **Expert Decision Agreement (Fleiss' Kappa):** `κ = 0.5088` (Moderate agreement) across 5 raters
+> **Scientific Disclosure:**  
+> Under a strict, leakage-safe protocol, neither standard RAG nor recency-weighted precedent scoring outperforms a constant baseline predicting the historical base rate (0.705). In corporate decision making, historical precedent similarity alone is not a sufficient statistical predictor of future outcome success.
+
+### 4.2 Conformal Risk Control (Inductive Split Conformal Prediction, $\alpha = 0.05$)
+
+- **Target Coverage:** $95.0\%$ ($1 - \alpha$)
+- **Calibrated Non-Conformity Cutoff ($\hat{q}$):** **0.8159** (calculated on held-out validation set)
+- **Empirical Test Coverage:** **94.58%**
+- **Mean Conformal Interval Width:** **0.9841**
+- **Abstention Rate (for strict human review):** **96.67%**
+
+> **Implication for Autonomy:**  
+> Because the empirical non-conformity threshold is $\hat{q} \approx 0.816$, finite-sample distribution-free intervals are wide ($[0.0, 1.0]$ for most decisions). Consequently, the enterprise risk policy correctly triggers `ABSTAIN_FOR_HUMAN_REVIEW` on $96.7\%$ of cases rather than asserting false certainty. This aligns with human-above-the-loop decision support: MARS acts as an evidence synthesizer and trade-off analyst, not an autonomous decider.
 
 ---
 
-**Conclusion:** Across all 2,080 multi-year cases, MARS achieves a +95.9% Brier calibration improvement over standard RAG, 91.7% multi-sector routing precision, and statistically guaranteed 95% conformal risk coverage.
+## 5. Audit Findings & Formal Retraction of Unsupported Claims
+
+Following an exhaustive source and artifact audit (`/home/harshith/Downloads/MARS_audit_vs_research.md`), the following claims from preliminary drafts have been audited and updated:
+
+| Prior Claim | Prior Status | Audit Finding | Updated Scientific Position |
+|:---|:---:|:---|:---|
+| **"+95.9% Brier Improvement"** | Claimed in early README | Label leakage in prototype script `eval_longitudinal.py` (`simulate_precedent_retrieval` directly read `case["ground_truth_label"]`). | **RETRACTED.** Clean calibration yields Brier = 0.225 vs. base-rate Brier = 0.204. No model beats the base rate on this corpus. |
+| **"p = 0.00000 Bootstrap & Fleiss' $\kappa = 0.5088$"** | Claimed in report v1 | Hardcoded arrays in `run_tier1_benchmarks.py` labelled "simulated" in code comments; no real human agreement study was run. | **RETRACTED.** Replaced with real empirical Wilcoxon tests ($p = 0.0001$) and 10,000-resample bootstrap CIs reported in Section 2. |
+| **"Retrieval nDCG@5 = 1.19"** | Claimed in retrieval table | Mathematically impossible ($> 1.0$). Resulted from self-retrieval where query cases existed in their own retrieval pool. | **RETRACTED.** All generation and retrieval evaluations now enforce `target_case_id` exclusion. |
+| **"Production $\hat{q} = 0.284$"** | Hardcoded constant | Prototype fallback constant. Empirical calibration yields $\hat{q} = 0.816$. | **CORRECTED.** Updated `conformal_predictor.py` fallback to 0.816 matching `calibration_results.json`. |
+| **"Aggregator Sees User Problem"** | Claimed in docs | Aggregator read `state.get("problem_statement")` which was absent from `State`, resulting in an empty problem string in prompt. | **FIXED.** Aggregator now extracts the user query directly from `state["messages"]`. |
+| **"State.retrieved_cases Populated"** | Claimed in docs | No graph node wrote to `State.retrieved_cases`, preventing API evidence panel display. | **FIXED.** Aggregator collects department evidence and returns `retrieved_cases` in state. |
+
+---
+
+## 6. Dataset Provenance, Corpus Scope & Limitations
+
+1. **Single-Corporation Scope:** The 2,080 cases are sourced from Apple Inc. public disclosures, 10-K/10-Q filings, and associated trade press (2023–2026). While domain diversity spans Finance, Operations, R&D, and Legal, cross-firm generalizability remains to be validated.
+2. **Templated Decision Clusters in 2025Q1–Q3:** Several 2025Q1 Finance cases (`AAPL-2025Q1-0085` through `0090`) and 2025Q2–Q3 R&D cases share structured boilerplate phrasing ("Restructure Short-Term Liquidity Allocation Tranche", "Scale Dedicated Neural Engine Optimization Pipeline"). Future benchmarks should increase cross-year case dispersion.
+3. **Judge Model Self-Alignment:** The benchmark utilized `qwen/qwen3.8-27b` both as generator and G-Eval judge. While strict rubric prompts and Chain-of-Thought scoring mitigate bias, cross-model judging (e.g., using Claude 3.5 Sonnet or GPT-4o as external judge) is recommended for independent confirmation.
+4. **Evaluation Sample Size:** The 40-case stratified sample provides sufficient statistical power for composite and major dimensional effects ($d \approx 1.0, p < 0.001$), but sub-dimension comparisons with subtle effect sizes (e.g., Conflict Awareness) require larger sample sizes.
+
+---
+
+## 7. Conclusions & Research Implications
+
+The clean, audit-verified 40-case benchmark demonstrates that **MARS achieves statistically significant, practically meaningful improvements in decision support quality over single-agent and standard RAG baselines**:
+
+1. **Domain-Isolated Retrieval Prevents Evidence Degradation:** Parallel department agents preserve specific precedent citations and quantitative constraints that single-agent prompts dilute.
+2. **Specialist Agents Surface Latent Risks:** Department specialists produce a **+0.725 Risk Foresight advantage ($p = 0.0001$)**, identifying operational and contractual vulnerabilities.
+3. **Empirical Honesty Over Over-Claiming:** By retracting prototype leakage artifacts and publishing real calibration bounds ($\hat{q} = 0.816$, abstention = $96.7\%$), MARS represents an honest, robust foundation for human-in-the-loop enterprise decision advisory.
+
+---
+*Report certified: 2026-11-02 | Evaluation Harness: `evaluation/eval_quality_experiment.py` | Statistical Scripts: `evaluation/compute_stats.py`*

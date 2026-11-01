@@ -72,10 +72,29 @@
    Simplex loss optimization over ground-truth outcomes minimizes Binary Cross-Entropy (BCE) loss on historical disclosures without modifying frozen LLM weights. Weights are stored persistently in `backend/app/reasoning/calibrated_weights_registry.json`.
 
 4. **Distribution-Free Conformal Risk Guarantees:**
-   Applies inductive conformal prediction (TW-CRC) to calculate finite-sample coverage intervals at significance level $\alpha = 0.05$. Triggers **`ABSTAIN_FOR_HUMAN_REVIEW`** when empirical evidence is sparse or lower bounds fall below safe operational thresholds.
+   Applies inductive split conformal prediction to calculate finite-sample coverage intervals at significance level $\alpha = 0.05$. Triggers **`ABSTAIN_FOR_HUMAN_REVIEW`** when empirical evidence is sparse or non-conformity intervals indicate high decision uncertainty.
 
 5. **Strict Anti-Hallucination Refusal Guardrail:**
    If all departments retrieve zero precedent cases or report $0.0$ confidence, the aggregator **strictly refuses to fabricate a speculative business plan**. It explicitly alerts management that empirical evidence is absent.
+
+---
+
+## Clean 4-System Decision Quality Benchmark
+
+We evaluated MARS against three rigorous, fair baselines receiving identical case information (decision description, quantitative signals, cross-departmental impact, and documented stakeholder tensions) across **40 chronological corporate decision cases** (10 Finance, 10 Operations, 10 R&D, 10 Legal; 160 evaluations total) using `qwen/qwen3.8-27b` with target-case self-retrieval exclusion:
+
+| System | Architecture | ActAlign | ConflAware | FactGround | RiskFore | **Composite** | 95% Bootstrap CI | Wilcoxon vs MARS | Cohen's d |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Baseline G1** | Zero-Shot CoT | 4.025 | 4.900 | 3.075 | 3.450 | **3.862** | [3.631, 4.081] | $p < 0.0001$ | 1.026 |
+| **Baseline G2** | Single-Agent Multi-Persona | 4.275 | 4.800 | 3.000 | 3.775 | **3.962** | [3.781, 4.138] | $p = 0.0001$ | 0.995 |
+| **Baseline G3** | Hybrid RAG Single-Agent | 3.475 | 4.500 | 2.500 | 3.800 | **3.569** | [3.300, 3.831] | $p < 0.0001$ | 1.304 |
+| **MARS** | **Multi-Agent Hybrid + MMR** | **4.550** | **4.800** | **4.550** | **4.525** | **4.606** | **[4.375, 4.812]** | — (ref) | — |
+
+**Key Empirical Takeaways:**
+* **Overall Quality:** MARS leads all baselines overall (+0.644 composite lead over best baseline G2, $p = 0.0001$, Cohen's $d = 0.995$).
+* **Factual Grounding:** MARS achieves a **+1.475 point advantage** ($p < 0.0001$) over single-agent baselines by preventing cross-domain evidence dilution.
+* **Risk Foresight:** Domain specialists identify operational and legal failure modes that generalist agents overlook (**4.525** vs. 3.800, $p = 0.0001$).
+* **Audit Alignment:** In alignment with our code audit, prototype artifacts (such as label-leaked Brier scores and simulated kappa values) have been retracted. See the full audited report in [evaluation/BENCHMARK_REPORT.md](evaluation/BENCHMARK_REPORT.md).
 
 ---
 
@@ -405,6 +424,7 @@ PYTHONPATH=backend python evaluation/run_benchmarks.py --mode all --full
 
 ## Documentation & Research Reports
 
+* [evaluation/BENCHMARK_REPORT.md](evaluation/BENCHMARK_REPORT.md) — **Master Audited Benchmark Report** with 40-case clean 4-system results, Wilcoxon tests, bootstrap CIs, calibration analysis, and retracted claims registry.
 * [ARCHITECTURE_CONFIDENCE_AND_ROUTING.md](ARCHITECTURE_CONFIDENCE_AND_ROUTING.md) — Comprehensive technical architecture, mathematical formulations, and dynamic router design.
 * [TIER_1_IMPLEMENTATION_AND_BENCHMARKS.md](TIER_1_IMPLEMENTATION_AND_BENCHMARKS.md) — Full academic benchmark report across Conformal Risk, Longitudinal Backtesting, and MultiCorp-QA.
 * [TIER_1_RESEARCH_PROPOSAL.md](TIER_1_RESEARCH_PROPOSAL.md) — Theoretical foundations and literature grounding (Angelopoulos & Bates, Gibbs & Candès, Guo et al.).

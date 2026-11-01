@@ -185,24 +185,11 @@ def compute_recency(
     if not cases:
         return 0.0
 
-    # Determine reference quarter index (default to current date or max observed quarter)
+    # Determine reference quarter index (default to current date)
     ref_idx = parse_quarter_to_index(reference_quarter) if reference_quarter else None
     if ref_idx is None:
-        # If no explicit reference quarter, find max quarter in cases or use current date
-        case_indices = [
-            parse_quarter_to_index(
-                (c.get("metadata") or {}).get("quarter")
-                or c.get("quarter")
-                or (c.get("metadata") or {}).get("decision_date")
-            )
-            for c in cases
-        ]
-        valid_indices = [idx for idx in case_indices if idx is not None]
-        if valid_indices:
-            ref_idx = max(valid_indices)
-        else:
-            now = datetime.date.today()
-            ref_idx = now.year * 4 + (now.month - 1) // 3
+        now = datetime.date.today()
+        ref_idx = now.year * 4 + (now.month - 1) // 3
 
     recency_scores: List[float] = []
     for c in cases:
@@ -287,6 +274,7 @@ def calculate_confidence_with_details(
     action_type: Optional[str] = None,
     weights: Optional[Tuple[float, float, float]] = None,
     query: Optional[str] = None,
+    reference_quarter: Optional[str] = None,
 ) -> Tuple[float, Dict[str, Any]]:
     """
     Computes calibrated confidence score alongside detailed dynamic weighting telemetry.
@@ -344,7 +332,7 @@ def calculate_confidence_with_details(
         if similarity is None:
             similarity = compute_similarity(cases)
         if recency is None:
-            recency = compute_recency(cases)
+            recency = compute_recency(cases, reference_quarter=reference_quarter)
         if past_success is None:
             past_success = analyze_outcomes(cases)
 

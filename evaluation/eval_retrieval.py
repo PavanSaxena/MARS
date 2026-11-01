@@ -294,6 +294,7 @@ class MARSHybridRetriever:
         k: int = 5,
         as_of_date: Optional[str] = None,
         cross_dept_impact: Optional[str] = None,
+        target_case_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # Dense scores
         dense_scores = np.dot(self.corpus_embeddings, query_emb)
@@ -313,6 +314,9 @@ class MARSHybridRetriever:
 
         hybrid_candidates = []
         for idx, doc in enumerate(self.corpus):
+            # LEAKAGE FIX: Exclude the target case itself to prevent self-retrieval
+            if target_case_id and doc.get("case_id") == target_case_id:
+                continue
             if as_of_date and doc.get("decision_date", "") > as_of_date:
                 continue
 

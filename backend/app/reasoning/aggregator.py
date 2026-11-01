@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Tuple
+import re
+import time
 
-from app.agents.common import get_llm
+from app.agents.common import get_llm, _invoke_with_rate_limit_retry
 from app.state import State
 from app.core.logging_config import get_logger
 
@@ -114,7 +116,21 @@ def aggregator_agent(state: State) -> Dict:
         _fmt_department(name, out) for name, out in departments
     )
 
-    query = state.get("problem_statement", "")
+    query = state.get("problem_statement")
+    if not query:
+        messages = state.get("messages") or []
+        for msg in reversed(messages):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                query = msg.get("content", "")
+                break
+            elif hasattr(msg, "content") and getattr(msg, "type", None) in ("human", "user"):
+                query = str(msg.content)
+                break
+            elif hasattr(msg, "content") and getattr(msg, "type", None) != "ai":
+                query = str(msg.content)
+                break
+    if not query:
+        query = ""
 
     prompt = f"""You are the Master Strategic Aggregator in an evidence-grounded decision support system for multi-departmental corporate advisory.
 
@@ -179,7 +195,7 @@ Final Decision:
 """
 
     logger.info("[Aggregator] Invoking LLM to synthesize final decision")
-    response = get_llm(state.get("model")).invoke(prompt)
+    response = _invoke_with_rate_limit_retry(get_llm(state.get("model")).invoke, prompt)
 
     # Normalise content — Gemini returns a list of dicts, not a plain string.
     raw_content = response.content
@@ -191,8 +207,16 @@ Final Decision:
     else:
         final_text = str(raw_content)
 
+    retrieved_cases_map: Dict[str, List[dict]] = {}
+    for name, out in departments:
+        if isinstance(out, dict):
+            cases = out.get("retrieved_cases") or out.get("historical_case_evidence") or []
+            if cases:
+                retrieved_cases_map[name] = cases
+
     return {
         "final_output": final_text,
         "final_decision": final_text,
+        "retrieved_cases": retrieved_cases_map,
         "messages": [response],
     }
