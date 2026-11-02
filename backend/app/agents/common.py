@@ -84,6 +84,9 @@ def get_llm(model_id: Optional[str] = None, api_key: Optional[str] = None):
 
     # Recognize model if in AVAILABLE_MODELS or has a valid provider prefix
     known_providers = ("ollama", "groq", "openrouter", "google_genai", "openai", "anthropic")
+    if model_id in ("ollama3:8b", "ollama3"):
+        model_id = "ollama:llama3:8b"
+
     if model_id and (model_id in settings.AVAILABLE_MODELS or any(model_id.startswith(p + ":") for p in known_providers)):
         resolved = model_id
     else:

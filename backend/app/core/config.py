@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "groq:openai/gpt-oss-120b"
     AVAILABLE_MODELS: List[str] = [
         "ollama:qwen2.5:3b",
+        "ollama:llama3:8b",
+        "ollama3:8b",
         "google_genai:gemini-3.8-flash",
         "groq:qwen/qwen3.8-27b",
         "groq:openai/gpt-oss-120b",
@@ -73,6 +75,8 @@ class Settings(BaseSettings):
 
     def api_key_for_model(self, model_id: str) -> Optional[str]:
         """Return the configured API key for a model's provider, or None."""
+        if model_id in ("ollama3:8b", "ollama3"):
+            return "local"
         provider = model_id.split(":", 1)[0] if ":" in model_id else ""
         return {
             "groq": self.GROQ_API_KEY,
