@@ -90,6 +90,12 @@ def classify_intent(state: State) -> Dict[str, Any]:
         logger.info("router_selected route=chat")
         return {"route": "chat", "active_departments": None}
 
+    # OpenWebUI system / background generation tasks (titles, tags, follow-up query prediction)
+    # must be handled directly by the conversational chat route, never fanning out to pipeline departments.
+    if query.startswith("### Task:") or "### Task: Generate" in query or "### Task: Predict" in query:
+        logger.info("router_selected route=chat reason=openwebui_internal_task")
+        return {"route": "chat", "active_departments": None}
+
     prompt = _ROUTER_PROMPT.format(history=_render_history(messages), query=query)
 
     try:
