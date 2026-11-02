@@ -1,6 +1,8 @@
 import json
 import os
+import random
 import re
+import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,7 +17,39 @@ from app.core.logging_config import get_logger
 
 logger = get_logger("agents.common")
 
+_LLM_MAX_CONCURRENCY = max(1, int(os.getenv("MARS_LLM_MAX_CONCURRENCY", "2")))
+_LLM_SEMAPHORE = threading.Semaphore(_LLM_MAX_CONCURRENCY)
+
 _llm_cache: Dict[str, Any] = {}
+
+
+def _canonical_tool_names(tools: List[Any]) -> set:
+    return {getattr(tool, "name", None) for tool in tools if getattr(tool, "name", None)}
+
+
+def _is_valid_tool_name(name: Optional[str], registered: set) -> bool:
+    return isinstance(name, str) and name in registered
+
+
+def _get_required_args(tool: Any) -> set:
+    schema = getattr(tool, "args_schema", None)
+    if schema is None:
+        return set()
+    try:
+        schema_dict = schema.schema()
+        properties = schema_dict.get("properties", {})
+        return set(schema_dict.get("required", properties.keys()))
+    except Exception:
+        return set()
+
+
+def _tool_arguments_error(tool: Any, args: Any) -> Optional[str]:
+    if not isinstance(args, dict):
+        return "arguments must be a JSON object"
+    missing = _get_required_args(tool) - {
+        key for key, value in args.items() if value is not None and value != ""
+    }
+    return f"missing required argument(s): {', '.join(sorted(missing))}" if missing else None
 
 
 def _normalize_content(content: Any) -> str:
@@ -563,56 +597,69 @@ def _recover_json_tool_error(exc: Exception) -> Optional[Dict[str, Any]]:
 
 
 def _invoke_with_rate_limit_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
-    """
-    Invoke an LLM call with in-place wait and retry for per-minute rate limits (TPM/ITPM).
-    Re-raises DailyRateLimitExceeded immediately if daily token limit (TPD) is reached.
-    """
-    max_retries = 12
-    for attempt in range(max_retries):
-        try:
-            return fn(*args, **kwargs)
-        except Exception as e:
-            err_str = str(e)
-            if "tokens per day" in err_str.lower() or "tpd" in err_str.lower():
-                raise e
-            elif "429" in err_str or "rate limit" in err_str.lower() or "too many" in err_str.lower():
-                match = re.search(r"try again in (\d+(?:\.\d+)?)\s*(s|m|h)?", err_str, re.IGNORECASE)
+    max_attempts = 4
+    base_wait = 1.0
+    max_wait = 20.0
+
+    for attempt in range(max_attempts):
+        with _LLM_SEMAPHORE:
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                error = str(exc)
+                if "tokens per day" in error.lower() or "tpd" in error.lower():
+                    raise
+                if not any(term in error.lower() for term in ("429", "rate limit", "too many")):
+                    raise
+
+                match = re.search(r"try again in (\d+(?:\.\d+)?)\s*(s|m|h)?", error, re.IGNORECASE)
                 if match:
-                    wait_sec = float(match.group(1))
-                    unit = (match.group(2) or "s").lower()
-                    if unit == "m":
-                        wait_sec *= 60
-                    elif unit == "h":
-                        wait_sec *= 3600
-                    wait_sec = max(wait_sec + 2.0, 5.0)
+                    delay = float(match.group(1))
+                    delay *= {"s": 1, "m": 60, "h": 3600}[(match.group(2) or "s").lower()]
+                    delay = min(max(delay, base_wait), max_wait)
                 else:
-                    wait_sec = 25.0 + min(attempt * 10, 60)
-                logger.warning(f"[Rate Limit] In-place waiting {wait_sec:.1f}s before retry (attempt {attempt+1}/{max_retries})...")
-                print(f"    [Agent TPM Limit] Waiting {wait_sec:.1f}s before retry...", flush=True)
-                time.sleep(wait_sec)
-            else:
-                raise e
-    raise RuntimeError("Exceeded maximum retries for LLM invocation")
+                    delay = min(base_wait * (2 ** attempt), max_wait)
+                delay = min(max(delay * (0.75 + 0.5 * random.random()), base_wait), max_wait)
+
+        if attempt + 1 < max_attempts:
+            logger.warning("llm_rate_limited retry=%d/%d wait_seconds=%.2f", attempt + 1, max_attempts, delay)
+            time.sleep(delay)
+
+    raise RuntimeError(f"Exceeded maximum attempts ({max_attempts}) for LLM invocation due to rate limiting")
 
 
-def _invoke_recovering_json_tool_error(llm_with_tools: Any, messages: Any) -> Any:
+def _invoke_recovering_json_tool_error(
+    llm_with_tools: Any, messages: Any, fallback_llm: Any = None
+) -> Any:
     """
     Call llm_with_tools.invoke(messages), transparently recovering from the
     gpt-oss synthetic-"json"-tool-call failure (see
     _recover_json_tool_error). On recovery, returns an AIMessage carrying the
     recovered answer as its content (with no tool_calls), so callers can
-    treat it exactly like a normal final answer. Any other exception is
-    re-raised unchanged.
+    treat it exactly like a normal final answer. Unknown-tool errors receive
+    one direct-answer retry; unrelated exceptions are re-raised unchanged.
     """
-    from langchain_core.messages import AIMessage
+    from langchain_core.messages import AIMessage, HumanMessage
 
     try:
         return llm_with_tools.invoke(messages)
     except Exception as exc:
         recovered = _recover_json_tool_error(exc)
-        if recovered is None:
-            raise
-        return AIMessage(content=json.dumps(recovered))
+        if recovered is not None:
+            return AIMessage(content=json.dumps(recovered))
+        error = str(exc).lower()
+        if fallback_llm is not None and (
+            "not in request.tools" in error
+            or ("attempted to call tool" in error and "tool_use_failed" in error)
+        ):
+            retry_messages = list(messages) if isinstance(messages, (list, tuple)) else [HumanMessage(content=str(messages))]
+            retry_messages.append(HumanMessage(content=(
+                "The previous tool request used an invalid tool name and was not executed. "
+                "Answer directly using only the supplied evidence. Do not call tools. "
+                "If evidence is insufficient, say so."
+            )))
+            return fallback_llm.invoke(retry_messages)
+        raise
 
 
 def run_llm_with_tools(
@@ -644,18 +691,14 @@ def run_llm_with_tools(
         response = _invoke_with_rate_limit_retry(llm.invoke, prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
 
-    # tool_choice="auto" is explicit here (langchain's bind_tools default is
-    # already "auto" on every provider we use) for clarity, but note it does
-    # NOT prevent the gpt-oss synthetic-"json"-tool-call failure below — that
-    # is the model's own choice of how to encode its final answer under
-    # Harmony's JSON-constraint mechanism, not a matter of whether a tool
-    # call happens at all. See _recover_json_tool_error for the actual fix.
+    # Exact names are validated before execution. Groq may reject a malformed
+    # model-generated name before returning a tool_calls response.
     try:
         logger.info(f"[{agent_name}] Running LLM inference with {len(tools)} tools: {[t.name for t in tools]}")
         logger.info("llm_tool_decision_started agent=%s", agent_name)
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
         ai_message = _invoke_with_rate_limit_retry(
-            _invoke_recovering_json_tool_error, llm_with_tools, prompt
+            _invoke_recovering_json_tool_error, llm_with_tools, prompt, llm
         )
     except Exception as e:
         err_str = str(e).lower()
@@ -685,10 +728,30 @@ def run_llm_with_tools(
     logger.info("llm_tool_decision_finished agent=%s tool_calls=%d", agent_name, len(tool_calls))
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
+    registered_names = _canonical_tool_names(tools)
+    tool_by_name = {getattr(tool, "name", None): tool for tool in tools}
 
     for call in tool_calls:
         tool_name = call.get("name")
-        args = call.get("args", {}) or {}
+        args = call.get("args", {})
+        call_id = call.get("id") or (tool_name or "unknown")
+
+        if not _is_valid_tool_name(tool_name, registered_names):
+            logger.warning("tool_call_invalid_name agent=%s name=%r", agent_name, tool_name)
+            messages.append(ToolMessage(
+                content=f"Tool call rejected: '{tool_name}' is not registered. No tool was executed.",
+                tool_call_id=call_id,
+            ))
+            continue
+
+        args_error = _tool_arguments_error(tool_by_name.get(tool_name), args)
+        if args_error:
+            logger.warning("tool_call_invalid_arguments agent=%s tool=%s error=%s", agent_name, tool_name, args_error)
+            messages.append(ToolMessage(
+                content=f"Tool call rejected: {args_error}. No tool was executed.",
+                tool_call_id=call_id,
+            ))
+            continue
 
         logger.info(f"[{agent_name}] Executing tool call '{tool_name}' with args: {args}")
         logger.info("tool_call_requested agent=%s tool=%s", agent_name, tool_name)
@@ -702,7 +765,7 @@ def run_llm_with_tools(
             else f"Tool error: {result.get('message')}"
         )
         logger.info(f"[{agent_name}] Tool '{tool_name}' returned status={result.get('status')}")
-        messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
+        messages.append(ToolMessage(content=tool_content, tool_call_id=call_id))
 
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
@@ -732,52 +795,64 @@ def execute_department_agent(
         return {output_key: None}
 
     logger.info("agent_started agent=%s", dept_code)
-    messages, query = extract_messages_and_query(state)
-    if not messages:
-        return empty_agent_result(output_key, messages)
+    messages = state.get("messages", []) or []
+    try:
+        messages, query = extract_messages_and_query(state)
+        if not messages:
+            return empty_agent_result(output_key, messages)
 
-    logger.info("retrieval_started agent=%s", dept_code)
-    cases, case_text, warnings = retrieve_case_context(query=query, domain=dept_code, k=5)
-    logger.info("retrieval_finished agent=%s cases=%d warnings=%s", dept_code, len(cases), warnings)
+        logger.info("retrieval_started agent=%s", dept_code)
+        cases, case_text, warnings = retrieve_case_context(query=query, domain=dept_code, k=5)
+        logger.info("retrieval_finished agent=%s cases=%d warnings=%s", dept_code, len(cases), warnings)
 
-    agent_name = f"{dept_code}_agent"
-    from app.tools.tool_registry import get_tool_objects_for_agent
-    tools = get_tool_objects_for_agent(agent_name)
+        agent_name = f"{dept_code}_agent"
+        from app.tools.tool_registry import get_tool_objects_for_agent
+        tools = get_tool_objects_for_agent(agent_name)
 
-    prompt = build_json_prompt(
-        agent_title=agent_title,
-        role_points=role_points,
-        rules=rules,
-        query=query,
-        case_text=case_text,
-        tool_names=[t.name for t in tools],
-    )
-
-    logger.info("llm_started agent=%s", dept_code)
-    content, tools_used, final_message = run_llm_with_tools(
-        get_llm(state.get("model")), prompt, tools, agent_name=agent_name
-    )
-    logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
-
-    parsed_output = parse_structured_output(content, preserve_legal_confidence=(dept_code == "legal"))
-    parsed_output.update(
-        build_case_evidence(
-            cases,
-            tools_used,
-            reported_confidence=parsed_output.get("confidence"),
+        prompt = build_json_prompt(
+            agent_title=agent_title,
+            role_points=role_points,
+            rules=rules,
             query=query,
-            department=dept_code,
+            case_text=case_text,
+            tool_names=[t.name for t in tools],
         )
-    )
-    if dept_code == "legal":
-        parsed_output.setdefault("historical_case_evidence", parsed_output.get("retrieved_cases", []))
-        parsed_output.setdefault("legal_evidence", [])
-        parsed_output.setdefault("judicial_evidence", [])
-    if warnings:
-        parsed_output["warnings"] = warnings
-    logger.info("agent_finished agent=%s", dept_code)
 
-    return {
-        output_key: parsed_output,
-        "messages": messages + [final_message],
-    }
+        logger.info("llm_started agent=%s", dept_code)
+        content, tools_used, final_message = run_llm_with_tools(
+            get_llm(state.get("model")), prompt, tools, agent_name=agent_name
+        )
+        logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
+
+        parsed_output = parse_structured_output(content, preserve_legal_confidence=(dept_code == "legal"))
+        parsed_output.update(
+            build_case_evidence(
+                cases,
+                tools_used,
+                reported_confidence=parsed_output.get("confidence"),
+                query=query,
+                department=dept_code,
+            )
+        )
+        if dept_code == "legal":
+            parsed_output.setdefault("historical_case_evidence", parsed_output.get("retrieved_cases", []))
+            parsed_output.setdefault("legal_evidence", [])
+            parsed_output.setdefault("judicial_evidence", [])
+        if warnings:
+            parsed_output["warnings"] = warnings
+        logger.info("agent_finished agent=%s", dept_code)
+        return {output_key: parsed_output, "messages": messages + [final_message]}
+    except Exception as exc:
+        logger.error("agent_failed agent=%s; marking unavailable: %s", dept_code, exc, exc_info=True)
+        return {
+            output_key: {
+                "status": "unavailable",
+                "response": f"{agent_title} agent is unavailable for this query.",
+                "reasoning": f"Agent failure: {type(exc).__name__}: {str(exc)[:200]}",
+                "confidence": 0.0,
+                "warnings": [f"agent_failed:{type(exc).__name__}"],
+                "num_cases_retrieved": 0,
+                "tools_used": [],
+            },
+            "messages": messages,
+        }
