@@ -1,13 +1,10 @@
 import json
-<<<<<<< Updated upstream
 import re
-=======
 import os
 import random
 import re
 import threading
 import time
->>>>>>> Stashed changes
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
@@ -493,9 +490,7 @@ def _recover_json_tool_error(exc: Exception) -> Optional[Dict[str, Any]]:
     return None
 
 
-<<<<<<< Updated upstream
 def _invoke_recovering_json_tool_error(llm_with_tools: Any, messages: Any) -> Any:
-=======
 def _invoke_with_rate_limit_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
     """
     Invoke an LLM call with bounded exponential backoff + jitter for Groq
@@ -558,7 +553,6 @@ def _invoke_with_rate_limit_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
 def _invoke_recovering_json_tool_error(
     llm_with_tools: Any, messages: Any, fallback_llm: Any = None
 ) -> Any:
->>>>>>> Stashed changes
     """
     Call llm_with_tools.invoke(messages), transparently recovering from the
     gpt-oss synthetic-"json"-tool-call failure (see
