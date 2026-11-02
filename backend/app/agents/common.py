@@ -48,6 +48,11 @@ def get_llm(model_id: Optional[str] = None, api_key: Optional[str] = None):
     """
     from langchain.chat_models import init_chat_model
 
+    # Open WebUI can retain an old selected model ID after the available model
+    # list changes. Map the previous Qwen3 label to the installed Ollama tag.
+    if model_id == "ollama:qwen3:8b":
+        model_id = "ollama:qwen3:latest"
+
     # Recognize model if in AVAILABLE_MODELS or has a valid provider prefix
     known_providers = ("ollama", "groq", "openrouter", "google_genai", "openai", "anthropic")
     if model_id and (model_id in settings.AVAILABLE_MODELS or any(model_id.startswith(p + ":") for p in known_providers)):
