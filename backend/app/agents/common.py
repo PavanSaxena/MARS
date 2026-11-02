@@ -69,7 +69,6 @@ def get_llm(model_id: Optional[str] = None, api_key: Optional[str] = None):
                 base_url="https://api.groq.com/openai/v1",
                 api_key=k,
                 max_retries=5,
-                max_tokens=600,
             )
         return _llm_cache[cache_key]
 
@@ -659,8 +658,19 @@ def run_llm_with_tools(
             _invoke_recovering_json_tool_error, llm_with_tools, prompt
         )
     except Exception as e:
-        if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
-            logger.warning(f"[{agent_name}] Tool calling not supported by provider ({e}), falling back to direct prompt")
+        err_str = str(e).lower()
+        tool_failure_keywords = (
+            "tool calling",
+            "not supported",
+            "tool_use_failed",
+            "tool call validation failed",
+            "attempted to call tool",
+            "invalid_request_error",
+        )
+        if any(term in err_str for term in tool_failure_keywords):
+            logger.warning(
+                f"[{agent_name}] Tool calling failure or unsupported by provider ({e}), falling back to direct prompt"
+            )
             response = _invoke_with_rate_limit_retry(llm.invoke, prompt)
             return _normalize_content(getattr(response, "content", str(response))), [], response
         logger.error(f"[{agent_name}] Error during tool-bound LLM invocation: {e}", exc_info=True)
