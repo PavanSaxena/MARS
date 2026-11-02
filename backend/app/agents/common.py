@@ -1,5 +1,13 @@
 import json
+<<<<<<< Updated upstream
 import re
+=======
+import os
+import random
+import re
+import threading
+import time
+>>>>>>> Stashed changes
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
@@ -10,7 +18,55 @@ from app.reasoning.similarity import compute_similarity
 from app.services.case_retrieval_service import get_similar_cases
 from app.state import State
 
+# ---------------------------------------------------------------------------
+# Bound simultaneous provider requests across parallel department agents.
+# ---------------------------------------------------------------------------
+_LLM_MAX_CONCURRENCY = max(1, int(os.getenv("MARS_LLM_MAX_CONCURRENCY", "2")))
+_LLM_SEMAPHORE = threading.Semaphore(_LLM_MAX_CONCURRENCY)
+
 _llm_cache: Dict[str, Any] = {}
+
+# ---------------------------------------------------------------------------
+# Tool-name validation helpers
+# ---------------------------------------------------------------------------
+
+def _canonical_tool_names(tools: List[Any]) -> set:
+    """Return the set of exact tool names as sent to the LLM in bind_tools."""
+    return {getattr(t, "name", None) for t in tools if getattr(t, "name", None)}
+
+
+def _is_valid_tool_name(name: Optional[str], registered: set) -> bool:
+    """Return True only if `name` exactly matches a registered tool name."""
+    return isinstance(name, str) and name in registered
+
+
+def _get_required_args(tool: Any) -> set:
+    """
+    Return the set of required argument names for a tool object.
+    Works with both LangChain StructuredTool (args_schema) and plain
+    SimpleNamespace stubs used in tests.
+    """
+    schema = getattr(tool, "args_schema", None)
+    if schema is None:
+        return set()
+    try:
+        props = schema.schema().get("properties", {})
+        required = schema.schema().get("required", list(props.keys()))
+        return set(required)
+    except Exception:
+        return set()
+
+
+def _tool_arguments_error(tool: Any, args: Any) -> Optional[str]:
+    """Return a validation error for malformed or incomplete tool arguments."""
+    if not isinstance(args, dict):
+        return "arguments must be a JSON object"
+    missing = _get_required_args(tool) - {
+        key for key, value in args.items() if value is not None and value != ""
+    }
+    if missing:
+        return f"missing required argument(s): {', '.join(sorted(missing))}"
+    return None
 
 
 def _normalize_content(content: Any) -> str:
@@ -437,24 +493,110 @@ def _recover_json_tool_error(exc: Exception) -> Optional[Dict[str, Any]]:
     return None
 
 
+<<<<<<< Updated upstream
 def _invoke_recovering_json_tool_error(llm_with_tools: Any, messages: Any) -> Any:
+=======
+def _invoke_with_rate_limit_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """
+    Invoke an LLM call with bounded exponential backoff + jitter for Groq
+    per-minute rate limits (TPM/ITPM).
+
+    - Daily limit (TPD): re-raised immediately; the department boundary marks
+      that department unavailable.
+    - Per-minute limit (429): exponential backoff with ±25 % jitter, capped
+      at 20 s per wait and 4 total attempts.
+    - A process-wide semaphore bounds concurrent provider calls.
+    """
+    _MAX_ATTEMPTS = 4
+    _BASE_WAIT = 1.0
+    _MAX_WAIT = 20.0
+
+    for attempt in range(_MAX_ATTEMPTS):
+        with _LLM_SEMAPHORE:
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                err_str = str(e)
+                if "tokens per day" in err_str.lower() or "tpd" in err_str.lower():
+                    raise
+
+                if not ("429" in err_str or "rate limit" in err_str.lower() or "too many" in err_str.lower()):
+                    raise
+
+                # Parse "try again in Xs" hint from Groq response body if present
+                match = re.search(r"try again in (\d+(?:\.\d+)?)\s*(s|m|h)?", err_str, re.IGNORECASE)
+                if match:
+                    hint_sec = float(match.group(1))
+                    unit = (match.group(2) or "s").lower()
+                    if unit == "m":
+                        hint_sec *= 60
+                    elif unit == "h":
+                        hint_sec *= 3600
+                    base = min(max(hint_sec, _BASE_WAIT), _MAX_WAIT)
+                else:
+                    # Exponential backoff: 1, 2, 4, 8 … capped at _MAX_WAIT
+                    base = min(_BASE_WAIT * (2 ** attempt), _MAX_WAIT)
+
+                # ±25 % jitter to de-correlate concurrent agent retries
+                jitter = base * 0.25 * (2 * random.random() - 1)
+                wait_sec = min(max(base + jitter, _BASE_WAIT), _MAX_WAIT)
+
+                logger.warning(
+                    "[Rate Limit] Waiting %.1fs before retry (attempt %d/%d)...",
+                    wait_sec, attempt + 1, _MAX_ATTEMPTS,
+                )
+
+        # Sleep outside the semaphore so other agents can make progress.
+        if attempt + 1 < _MAX_ATTEMPTS:
+            time.sleep(wait_sec)
+
+    raise RuntimeError(
+        f"Exceeded maximum attempts ({_MAX_ATTEMPTS}) for LLM invocation due to rate limiting"
+    )
+
+
+def _invoke_recovering_json_tool_error(
+    llm_with_tools: Any, messages: Any, fallback_llm: Any = None
+) -> Any:
+>>>>>>> Stashed changes
     """
     Call llm_with_tools.invoke(messages), transparently recovering from the
     gpt-oss synthetic-"json"-tool-call failure (see
     _recover_json_tool_error). On recovery, returns an AIMessage carrying the
     recovered answer as its content (with no tool_calls), so callers can
-    treat it exactly like a normal final answer. Any other exception is
-    re-raised unchanged.
+    treat it exactly like a normal final answer. Unknown-tool errors receive
+    one direct-answer retry; unrelated exceptions are re-raised unchanged.
     """
-    from langchain_core.messages import AIMessage
+    from langchain_core.messages import AIMessage, HumanMessage
 
     try:
         return llm_with_tools.invoke(messages)
     except Exception as exc:
         recovered = _recover_json_tool_error(exc)
-        if recovered is None:
-            raise
-        return AIMessage(content=json.dumps(recovered))
+        if recovered is not None:
+            return AIMessage(content=json.dumps(recovered))
+
+        # Groq validates a generated tool name before returning an AIMessage.
+        # A malformed name therefore cannot reach the exact-name executor guard.
+        error_text = str(exc).lower()
+        if fallback_llm is not None and (
+            "not in request.tools" in error_text
+            or ("attempted to call tool" in error_text and "tool_use_failed" in error_text)
+        ):
+            if isinstance(messages, (list, tuple)):
+                retry_messages = list(messages)
+            else:
+                retry_messages = [HumanMessage(content=str(messages))]
+            retry_messages.append(
+                HumanMessage(content=(
+                    "The previous tool request used an invalid tool name and was not executed. "
+                    "Answer the original request directly using only the supplied evidence. "
+                    "Do not call tools. If evidence is insufficient, say so."
+                ))
+            )
+            logger.warning("tool_call_recovery mode=direct_answer reason=unknown_tool_name")
+            return fallback_llm.invoke(retry_messages)
+        raise
 
 
 def run_llm_with_tools(
@@ -484,15 +626,17 @@ def run_llm_with_tools(
         response = llm.invoke(prompt)
         return _normalize_content(getattr(response, "content", str(response))), [], response
 
-    # tool_choice="auto" is explicit here (langchain's bind_tools default is
-    # already "auto" on every provider we use) for clarity, but note it does
-    # NOT prevent the gpt-oss synthetic-"json"-tool-call failure below — that
-    # is the model's own choice of how to encode its final answer under
-    # Harmony's JSON-constraint mechanism, not a matter of whether a tool
-    # call happens at all. See _recover_json_tool_error for the actual fix.
+    # Tool names are validated exactly after the provider returns a call. Some
+    # Groq responses reject unknown model-generated names before that point.
     try:
         llm_with_tools = llm.bind_tools(tools, tool_choice="auto")
+<<<<<<< Updated upstream
         ai_message = _invoke_recovering_json_tool_error(llm_with_tools, prompt)
+=======
+        ai_message = _invoke_with_rate_limit_retry(
+            _invoke_recovering_json_tool_error, llm_with_tools, prompt, llm
+        )
+>>>>>>> Stashed changes
     except Exception as e:
         if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
             response = llm.invoke(prompt)
@@ -506,9 +650,52 @@ def run_llm_with_tools(
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
 
+    # Build a lookup: exact registered name → tool object (for required-arg inspection)
+    registered_names = _canonical_tool_names(tools)
+    tool_by_name = {getattr(t, "name", None): t for t in tools}
+
     for call in tool_calls:
         tool_name = call.get("name")
-        args = call.get("args", {}) or {}
+        args = call.get("args", {})
+        call_id = call.get("id") or (tool_name or "unknown")
+
+        # ------------------------------------------------------------------
+        # Guard 1 — invalid / hallucinated tool name
+        # The model (especially Qwen/gpt-oss on Groq) occasionally emits a
+        # space-mangled or truncated name such as "Com compliancechecker_tool"
+        # that was never in request.tools. Executing or feeding this name back
+        # to Groq would cause an HTTP 400 on the follow-up synthesis call.
+        # Inject a ToolMessage error instead so the model can self-correct.
+        # ------------------------------------------------------------------
+        if not _is_valid_tool_name(tool_name, registered_names):
+            logger.warning(
+                "tool_call_invalid_name agent=%s name=%r registered=%s",
+                agent_name, tool_name, sorted(registered_names),
+            )
+            invalid_msg = (
+                f"Tool call rejected: '{tool_name}' is not a valid tool name. "
+                f"Valid tools are: {sorted(registered_names)}. "
+                "Please answer directly without calling a tool."
+            )
+            messages.append(ToolMessage(content=invalid_msg, tool_call_id=call_id))
+            continue
+
+        # ------------------------------------------------------------------
+        # Guard 2 — malformed or missing required arguments. Never guess a
+        # tool argument: return a tool error and let synthesis state the limit.
+        # ------------------------------------------------------------------
+        tool_obj = tool_by_name.get(tool_name)
+        args_error = _tool_arguments_error(tool_obj, args)
+        if args_error:
+            logger.warning(
+                "tool_call_invalid_arguments agent=%s tool=%s error=%s",
+                agent_name, tool_name, args_error,
+            )
+            messages.append(ToolMessage(
+                content=f"Tool call rejected: {args_error}. No tool was executed.",
+                tool_call_id=call_id,
+            ))
+            continue
 
         result = execute_tool_call(agent_name, tool_name, args)
         used_tools.append(tool_name)
@@ -518,9 +705,114 @@ def run_llm_with_tools(
             if result.get("status") == "success"
             else f"Tool error: {result.get('message')}"
         )
+<<<<<<< Updated upstream
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
+=======
+        logger.info(f"[{agent_name}] Tool '{tool_name}' returned status={result.get('status')}")
+        messages.append(ToolMessage(content=tool_content, tool_call_id=call_id))
+>>>>>>> Stashed changes
 
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
     final_message = llm.invoke(messages)
     return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
+<<<<<<< Updated upstream
+=======
+
+
+def execute_department_agent(
+    state: State,
+    department: str,
+    agent_title: str,
+    output_key: str,
+    role_points: List[str],
+    rules: List[str],
+) -> Dict[str, Any]:
+    """Generic runner for department specialist agents (finance, legal, operations, rd).
+
+    Handles active department routing gating, case retrieval, tool binding,
+    LLM invocation, structured output parsing, and evidence attachment.
+
+    A failure inside any single department is caught here and returned as an
+    explicit "unavailable" marker so the LangGraph aggregator can still
+    collect outputs from the other departments.
+    """
+    dept_code = department.lower()
+    active_depts = state.get("active_departments")
+    if active_depts is not None and dept_code not in active_depts:
+        return {output_key: None}
+
+    logger.info("agent_started agent=%s", dept_code)
+    messages = state.get("messages", []) or []
+
+    try:
+        messages, query = extract_messages_and_query(state)
+        if not messages:
+            return empty_agent_result(output_key, messages)
+
+        logger.info("retrieval_started agent=%s", dept_code)
+        cases, case_text, warnings = retrieve_case_context(query=query, domain=dept_code, k=5)
+        logger.info("retrieval_finished agent=%s cases=%d warnings=%s", dept_code, len(cases), warnings)
+
+        agent_name = f"{dept_code}_agent"
+        from app.tools.tool_registry import get_tool_objects_for_agent
+        tools = get_tool_objects_for_agent(agent_name)
+
+        prompt = build_json_prompt(
+            agent_title=agent_title,
+            role_points=role_points,
+            rules=rules,
+            query=query,
+            case_text=case_text,
+            tool_names=[t.name for t in tools],
+        )
+
+        logger.info("llm_started agent=%s", dept_code)
+        content, tools_used, final_message = run_llm_with_tools(
+            get_llm(state.get("model")), prompt, tools, agent_name=agent_name
+        )
+        logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
+
+        parsed_output = parse_structured_output(content, preserve_legal_confidence=(dept_code == "legal"))
+        parsed_output.update(
+            build_case_evidence(
+                cases,
+                tools_used,
+                reported_confidence=parsed_output.get("confidence"),
+                query=query,
+                department=dept_code,
+            )
+        )
+        if dept_code == "legal":
+            parsed_output.setdefault("historical_case_evidence", parsed_output.get("retrieved_cases", []))
+            parsed_output.setdefault("legal_evidence", [])
+            parsed_output.setdefault("judicial_evidence", [])
+        if warnings:
+            parsed_output["warnings"] = warnings
+        logger.info("agent_finished agent=%s", dept_code)
+
+        return {
+            output_key: parsed_output,
+            "messages": messages + [final_message],
+        }
+
+    except Exception as exc:
+        err_str = str(exc)
+        # All other failures: isolate this department and let the rest finish.
+        logger.error(
+            "agent_failed agent=%s — marking department unavailable, other departments unaffected: %s",
+            dept_code, exc, exc_info=True,
+        )
+        return {
+            output_key: {
+                "status": "unavailable",
+                "response": f"{agent_title} agent encountered an error and is unavailable for this query.",
+                "reasoning": f"Agent failure isolated: {type(exc).__name__}: {err_str[:200]}",
+                "confidence": 0.0,
+                "warnings": [f"agent_failed:{type(exc).__name__}"],
+                "num_cases_retrieved": 0,
+                "tools_used": [],
+            },
+            "messages": messages,
+        }
+>>>>>>> Stashed changes
