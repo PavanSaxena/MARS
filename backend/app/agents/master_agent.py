@@ -30,6 +30,76 @@ def _pick_route(state: State) -> str:
     return state.get("route") or "pipeline"
 
 
+def _fallback_agent_response(state: State) -> str:
+    """Return department findings if the aggregator produced an empty answer.
+
+    This keeps useful specialist work visible to API clients when a model
+    returns an empty synthesis (for example, after a rate-limit retry).
+    """
+    sections = []
+    for label, key in (
+        ("Finance", "finance_output"),
+        ("Legal", "legal_output"),
+        ("Operations", "operations_output"),
+        ("R&D", "rd_output"),
+    ):
+        output = state.get(key) or {}
+        response = str(output.get("response") or "").strip()
+        if response:
+            sections.append(f"{label} assessment: {response}")
+        for evidence_key, evidence_label in (("legal_evidence", "Legal sources"),
+                                             ("judicial_evidence", "Judicial sources")):
+            evidence_rows = output.get(evidence_key) or []
+            for item in evidence_rows:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("title") or item.get("id") or "Untitled source"
+                source_url = item.get("source_url") or ""
+                authority = item.get("authority") or "authority unknown"
+                suffix = f" — {source_url}" if source_url else ""
+                sections.append(f"{evidence_label}: {title} ({authority}){suffix}")
+
+    if not sections:
+        sections.append("No department assessment or source evidence was returned.")
+    decision = "\n\n".join(sections)
+    return (
+        "Key Insights:\n"
+        "- The synthesis model returned an empty response; the available department findings are shown below.\n\n"
+        "Final Decision:\n"
+        f"{decision}\n\n"
+        "This is an unsynthesized fallback. Review the department findings and cited sources directly."
+    )
+
+
+def _verified_dpdp_response(state: State) -> str | None:
+    """Render a bounded India DPDP response only when official Act text exists."""
+    legal = state.get("legal_output") or {}
+    source = next((item for item in legal.get("legal_evidence", [])
+                   if isinstance(item, dict)
+                   and item.get("authority") == "authoritative"
+                   and "digital personal data protection act" in str(item.get("title", "")).lower()
+                   and item.get("full_text")), None)
+    if not source:
+        return None
+
+    title = source.get("title") or "The Digital Personal Data Protection Act, 2023"
+    url = source.get("source_url") or "India Code source URL unavailable"
+    return f"""## India customer-data analytics: legal verification checklist
+
+The Legal Agent retrieved the authoritative text of **{title}** from India Code. The text is marked as consolidated through **19 November 2025**. Use the official source below to confirm amendments, commencement notifications, and applicable Rules before launch.
+
+- **Scope (section 3):** Confirm the data is digital personal data and check whether processing in India—or processing outside India connected to offering goods or services to people in India—falls within the Act.
+- **Processing basis, notice, and consent (sections 4–7):** Document the lawful purpose and applicable basis. Where consent is used, check the notice and consent requirements, withdrawal process, and whether a specific legitimate-use ground applies instead.
+- **Data-fiduciary controls (section 8):** Check security safeguards, processor contracts, breach notification, accuracy where data informs decisions or is disclosed, retention/deletion, and a grievance process.
+- **Additional conditions (sections 9–10):** Apply the child-data requirements where relevant. The additional Significant Data Fiduciary duties apply only if the Central Government designates the organization in that category; verify the designation before treating those duties as applicable.
+- **People’s rights (sections 11–14):** Provide the applicable access, correction/erasure, grievance, and nomination processes.
+- **Cross-border processing and penalties (sections 16 and 33):** Check current government restrictions on transfers. Review the Schedule for the penalty that corresponds to any identified breach.
+
+**Verification limits:** This lookup retrieved the Act text, but did not retrieve current commencement notifications or the Digital Personal Data Protection Rules. It also did not retrieve court judgments. Historical MARS cases are organizational precedents and do not establish these legal requirements.
+
+**Authoritative source:** [{title}]({url})"""
+
+
 def build_graph():
     """
     Build and compile the multi-agent decision graph.
@@ -113,7 +183,10 @@ def run_graph(
     config = {"configurable": {"thread_id": thread_id}}
     try:
         final_state = graph.invoke(initial_state, config=config)
-        output_text = final_state.get("final_output") or final_state.get("final_decision") or "No output generated."
+        output_text = final_state.get("final_output") or final_state.get("final_decision")
+        if not output_text or not str(output_text).strip():
+            logger.warning("[Graph] Aggregator returned no content; using department-response fallback")
+            output_text = _fallback_agent_response(final_state)
         retrieved_cases = final_state.get("retrieved_cases") or {}
         elapsed = time.time() - start_time
         route = final_state.get("route", "pipeline")

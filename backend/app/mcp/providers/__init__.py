@@ -24,7 +24,9 @@ def normalize_country(country: str) -> tuple[str | None, str]:
     key = " ".join((country or "").strip().upper().replace("_", " ").split())
     name = COUNTRIES.get(key)
     if name:
-        code = next((c for c, n in COUNTRIES.items() if len(c) == 2 and n == name), None)
+        code = {"UK": "GB", "USA": "US"}.get(key)
+        if code is None:
+            code = next((c for c, n in COUNTRIES.items() if len(c) == 2 and n == name), None)
         return code, name
     if len(key) == 2 and key in ISO_CODES:
         return key, key

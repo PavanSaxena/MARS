@@ -41,6 +41,23 @@ def test_tool_executor_wraps_mcp_exception(monkeypatch):
     assert result == {"status": "error", "message": "synthetic timeout"}
 
 
+def test_legal_tool_executor_accepts_jurisdiction_alias(monkeypatch):
+    import app.tools.tool_executor as tool_executor
+
+    seen = {}
+
+    def fake_call(name, arguments):
+        seen.update(name=name, arguments=arguments)
+        return "{}"
+
+    monkeypatch.setattr(tool_executor, "call_tool_sync", fake_call)
+    result = tool_executor.execute_tool_call(
+        "legal_agent", "search_judgments", {"query": "privacy", "jurisdiction": "India"}
+    )
+    assert result == {"status": "success", "result": "{}"}
+    assert seen["arguments"] == {"query": "privacy", "country": "India"}
+
+
 def test_run_llm_with_tools_feeds_tool_error_back_to_model(monkeypatch):
     import app.agents.common as common
 
@@ -63,7 +80,7 @@ def test_run_llm_with_tools_feeds_tool_error_back_to_model(monkeypatch):
         return {"status": "error", "message": "synthetic failure"}
 
     monkeypatch.setattr("app.tools.tool_executor.execute_tool_call", fake_execute)
-    content, used_tools, _ = common.run_llm_with_tools(
+    content, used_tools, _, _ = common.run_llm_with_tools(
         FakeLLM(),
         "prompt",
         tools=[SimpleNamespace(name="FinancialDataTool")],
@@ -71,3 +88,42 @@ def test_run_llm_with_tools_feeds_tool_error_back_to_model(monkeypatch):
     )
     assert used_tools == ["FinancialDataTool"]
     assert "fallback used" in content
+
+
+def test_legal_search_automatically_fetches_authoritative_act_text(monkeypatch):
+    import json
+    import app.agents.common as common
+    import app.tools.tool_executor as tool_executor
+
+    calls = []
+
+    class FakeBoundLLM:
+        def invoke(self, _prompt):
+            return SimpleNamespace(content="", tool_calls=[{
+                "name": "search_laws", "args": {"query": "DPDP Act", "country": "India"}, "id": "law-search"
+            }])
+
+    class FakeLLM:
+        def bind_tools(self, tools, tool_choice="auto"):
+            return FakeBoundLLM()
+
+        def invoke(self, messages):
+            assert any("official Act text" in getattr(message, "content", "") for message in messages)
+            return SimpleNamespace(content='{"response":"Act checked","reasoning":"Text retrieved","confidence":0.8}')
+
+    def fake_execute(_agent, tool_name, _args):
+        calls.append(tool_name)
+        if tool_name == "search_laws":
+            return {"status": "success", "result": json.dumps({"results": [{
+                "title": "Digital Personal Data Protection Act, 2023", "authority": "authoritative"
+            }]})}
+        return {"status": "success", "result": '{"full_text":"official Act text"}'}
+
+    monkeypatch.setattr(tool_executor, "execute_tool_call", fake_execute)
+    content, used_tools, _, tool_results = common.run_llm_with_tools(
+        FakeLLM(), "current Indian data law", [SimpleNamespace(name="search_laws")], "legal_agent"
+    )
+    assert calls == ["search_laws", "get_law"]
+    assert used_tools == ["search_laws", "get_law"]
+    assert len(tool_results) == 2
+    assert "Act checked" in content

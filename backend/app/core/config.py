@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Optional search tool
     TAVILY_API_KEY: Optional[str] = None
 
+    # Optional eCourtsIndia partner API (used by Indian judgment tools)
+    ECOURTSINDIA_API_TOKEN: Optional[str] = None
+    ECOURTSINDIA_API_BASE_URL: str = "https://webapi.ecourtsindia.com"
+
     # Retrieval & Contextual Reranking
     RETRIEVAL_CANDIDATE_COUNT: int = 25  # Top candidates fetched from vector search
     RETRIEVAL_MIN_CASES: int = 3          # Minimum number of target cases to return (if relevant)
@@ -93,7 +97,7 @@ settings = Settings()
 # settings object. Without this sync, get_llm() (app/agents/common.py) fails
 # with e.g. "GROQ_API_KEY environment variable" even though the settings key
 # is correctly set.
-for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"):
+for _env_key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "ECOURTSINDIA_API_TOKEN", "ECOURTSINDIA_API_BASE_URL"):
     _value = getattr(settings, _env_key, None)
     if _value and not os.environ.get(_env_key):
         os.environ[_env_key] = _value

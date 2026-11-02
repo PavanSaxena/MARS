@@ -259,6 +259,30 @@ def search_regulations(query: str, country: str) -> str:
     return _legal_search(query, country, "regulation")
 
 
+@mcp.tool(name="get_regulation")
+def get_regulation(regulation_name_or_id: str, country: str) -> str:
+    """Resolve and retrieve the official text of a regulation where supported."""
+    provider, error = _legal_provider(country)
+    if error == "unrecognized":
+        return _legal_json({"error": "invalid_country", "country": country,
+                            "supported_jurisdictions": list_supported_jurisdictions()})
+    if error == "unsupported":
+        return _legal_json({"results": _legal_discovery(regulation_name_or_id, country, "regulation"),
+                            "authoritative_verification": "unavailable"})
+    getter = getattr(provider, "get_regulation", None)
+    if getter is None:
+        return _legal_json({"error": "provider_unavailable",
+                            "message": f"Official regulation text retrieval is not implemented for {country}.",
+                            "authority": "unknown"})
+    try:
+        result = getter(regulation_name_or_id)
+        return _legal_json({"result": result, "provider": provider.source_name,
+                            "authority": provider.authority_level} if result else
+                           {"results": [], "message": "No matching regulation found."})
+    except LegalProviderError as exc:
+        return _legal_json({"error": "provider_unavailable", "message": str(exc), "authority": "unknown"})
+
+
 @mcp.tool(name="list_supported_jurisdictions")
 def supported_jurisdictions() -> str:
     """List jurisdictions backed by an implemented authoritative legislation provider."""

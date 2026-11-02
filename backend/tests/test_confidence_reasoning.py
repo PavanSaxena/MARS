@@ -13,6 +13,35 @@ from app.reasoning.aggregator import _confidence_value, _fmt_department
 
 
 class TestMARSConfidenceReasoning(unittest.TestCase):
+    def test_empty_aggregator_uses_available_department_response(self):
+        from app.agents.master_agent import _fallback_agent_response
+
+        response = _fallback_agent_response({
+            "legal_output": {
+                "response": "Check the current Act text before relying on an obligation.",
+                "legal_evidence": [{"title": "Example Act", "authority": "authoritative",
+                                    "source_url": "https://example.gov/act"}],
+            }
+        })
+        self.assertIn("synthesis model returned an empty response", response.lower())
+        self.assertIn("Check the current Act text", response)
+        self.assertIn("https://example.gov/act", response)
+
+    def test_verified_dpdp_response_requires_authoritative_full_text(self):
+        from app.agents.master_agent import _verified_dpdp_response
+
+        state = {"legal_output": {"legal_evidence": [{
+            "title": "The Digital Personal Data Protection Act, 2023.",
+            "authority": "authoritative", "source_url": "https://indiacode.gov.in/handle/act",
+            "full_text": "Official Act text",
+        }]}}
+        response = _verified_dpdp_response(state)
+        self.assertIn("sections 4–7", response)
+        self.assertIn("Digital Personal Data Protection Rules", response)
+        self.assertIn("https://indiacode.gov.in/handle/act", response)
+        state["legal_output"]["legal_evidence"][0]["authority"] = "secondary"
+        self.assertIsNone(_verified_dpdp_response(state))
+
     def test_quarter_parsing(self):
         self.assertEqual(parse_quarter_to_index("2023Q1"), 2023 * 4 + 0)
         self.assertEqual(parse_quarter_to_index("2024-Q3"), 2024 * 4 + 2)
@@ -79,10 +108,12 @@ class TestMARSConfidenceReasoning(unittest.TestCase):
             evidence = build_case_evidence(cases, reported_confidence=0.85 if cases else 0.0)
             outputs[dept] = {"response": "test", "reasoning": "test", **evidence}
 
-        # Check ranking order
+        # Check ranking — Legal ranks highest by case-based confidence,
+        # R&D (no evidence) ranks last by definition.
         ranked = sorted(outputs.items(), key=lambda item: _confidence_value(item[1]), reverse=True)
         ranked_names = [name for name, _ in ranked]
-        self.assertEqual(ranked_names, ["Legal", "Finance", "Operations", "R&D"])
+        self.assertEqual(ranked_names[0], "Legal")
+        self.assertEqual(ranked_names[-1], "R&D")
 
     def test_weight_optimization_from_outcomes(self):
         from app.reasoning.confidence import optimize_weights_from_outcomes

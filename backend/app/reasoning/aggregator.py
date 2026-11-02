@@ -9,6 +9,18 @@ from app.core.logging_config import get_logger
 logger = get_logger("reasoning.aggregator")
 
 
+def _latest_user_query(state: State) -> str:
+    for message in reversed(state.get("messages", []) or []):
+        role = getattr(message, "type", None)
+        content = getattr(message, "content", None)
+        if isinstance(message, dict):
+            role = message.get("role", role)
+            content = message.get("content", content)
+        if role in {"human", "user"} and content:
+            return str(content)
+    return ""
+
+
 def _confidence_value(output: dict) -> float:
     """
     Extract the effective confidence for ranking.
@@ -66,13 +78,16 @@ def _fmt_department(name: str, output: dict) -> str:
         if rationale:
             weights_line += f" ({rationale})"
 
-    resp_text = str(output.get('response', 'N/A'))
-    if len(resp_text) > 1500:
-        resp_text = resp_text[:1500] + " ... [truncated for token budget]"
-
-    reason_text = str(output.get('reasoning', 'N/A'))
-    if len(reason_text) > 1500:
-        reason_text = reason_text[:1500] + " ... [truncated for token budget]"
+    external_sources = []
+    for key, label in (("legal_evidence", "Legal source"), ("judicial_evidence", "Judicial source")):
+        for item in output.get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or item.get("id") or "Untitled source"
+            authority = item.get("authority") or "authority unknown"
+            source_url = item.get("source_url") or "URL unavailable"
+            external_sources.append(f"{label}: {title} | Authority: {authority} | URL: {source_url}")
+    source_text = "\n" + "\n".join(external_sources) if external_sources else "\nLegal/judicial source evidence: None returned."
 
     return (
         f"--- {name} Assessment ---\n"
@@ -82,7 +97,78 @@ def _fmt_department(name: str, output: dict) -> str:
         f"LLM Self-Reported Confidence: {reported_text}\n"
         f"Cases Retrieved: {output.get('num_cases_retrieved', 'N/A')}\n"
         f"Retrieved Case IDs: {case_ids_text}"
+        f"{source_text}"
     )
+
+
+def _direct_legal_answer(state: State) -> str | None:
+    """Return the Legal Agent's source-grounded answer without case-only synthesis."""
+    query = _latest_user_query(state).lower()
+    legal_intent = any(term in query for term in (
+        "law", "legal", "statute", "statutory", "regulation", "regulatory",
+        "act", "section", "provision", "rights", "compliance", "court", "judgment",
+        "labour", "labor", "employment", "termination", "misconduct", "privacy",
+        "data protection", "contract",
+    ))
+    if not legal_intent:
+        return None
+
+    legal = state.get("legal_output") or {}
+    nonlegal_findings = any(
+        str((state.get(key) or {}).get("response") or "").strip()
+        for key in ("finance_output", "operations_output", "rd_output")
+    )
+    if nonlegal_findings:
+        return None
+    legal_sources = [item for item in legal.get("legal_evidence", []) if isinstance(item, dict)]
+    judgment_sources = [item for item in legal.get("judicial_evidence", []) if isinstance(item, dict)]
+    provider_warnings = legal.get("warnings") or []
+    provider_attempted = any(
+        tool in {"search_laws", "get_law", "search_regulations", "get_regulation", "search_judgments", "get_judgment"}
+        for tool in (legal.get("tools_used") or [])
+    )
+    if not (legal_sources or judgment_sources or provider_warnings or provider_attempted):
+        return None
+
+    answer = str(legal.get("response") or "").strip()
+    if not answer:
+        answer = "I could not produce a legal answer from the available retrieval results."
+    sections = ["## Legal answer", answer]
+    if legal_sources:
+        rows = []
+        seen = set()
+        for item in legal_sources:
+            title = item.get("title") or item.get("id") or "Untitled source"
+            url = item.get("source_url")
+            key = (title, url)
+            if key in seen:
+                continue
+            seen.add(key)
+            authority = item.get("authority") or "authority unknown"
+            source = f"[{title}]({url})" if url else str(title)
+            date = f"; retrieved {item.get('retrieved_at')}" if item.get("retrieved_at") else ""
+            rows.append(f"- {source} ({authority}{date})")
+        sections.extend(["### Statutory and regulatory sources", *rows])
+        if any(item.get("status") in (None, "unknown") or item.get("currentness") for item in legal_sources):
+            sections.append(
+                "**Currency limit:** India Code supplied official text, but this lookup did not independently verify "
+                "in-force status, later amendments, or commencement notifications."
+            )
+    if judgment_sources:
+        rows = []
+        for item in judgment_sources:
+            title = item.get("title") or item.get("id") or "Untitled judgment record"
+            url = item.get("source_url")
+            source = f"[{title}]({url})" if url else str(title)
+            rows.append(f"- {source} ({item.get('authority') or 'authority unknown'}; {item.get('court') or 'court unknown'})")
+        sections.extend([
+            "### Judgment search results",
+            *rows,
+            "These are retrieval leads. Treat third-party judgment records as secondary until checked against the official court record.",
+        ])
+    if legal.get("historical_case_evidence"):
+        sections.append("MARS historical cases are internal precedent only; they do not establish current law.")
+    return "\n\n".join(sections)
 
 
 def aggregator_agent(state: State) -> Dict:
@@ -94,6 +180,10 @@ def aggregator_agent(state: State) -> Dict:
     - Uses priority order (Legal > Finance > Operations > R&D) as a tiebreaker
     - Synthesizes cross-departmental tensions and produces a grounded strategic decision
     """
+    direct_legal = _direct_legal_answer(state)
+    if direct_legal:
+        return {"final_output": direct_legal, "final_decision": direct_legal, "messages": []}
+
     departments: List[Tuple[str, dict]] = [
         ("Finance", state.get("finance_output") or {}),
         ("Legal", state.get("legal_output") or {}),
@@ -116,21 +206,7 @@ def aggregator_agent(state: State) -> Dict:
         _fmt_department(name, out) for name, out in departments
     )
 
-    query = state.get("problem_statement")
-    if not query:
-        messages = state.get("messages") or []
-        for msg in reversed(messages):
-            if isinstance(msg, dict) and msg.get("role") == "user":
-                query = msg.get("content", "")
-                break
-            elif hasattr(msg, "content") and getattr(msg, "type", None) in ("human", "user"):
-                query = str(msg.content)
-                break
-            elif hasattr(msg, "content") and getattr(msg, "type", None) != "ai":
-                query = str(msg.content)
-                break
-    if not query:
-        query = ""
+    query = _latest_user_query(state)
 
     prompt = f"""You are the Master Strategic Aggregator in an evidence-grounded decision support system for multi-departmental corporate advisory.
 
@@ -154,7 +230,10 @@ Department Assessments:
 
 CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
 1. You must base your synthesis and decision STRICTLY on the evidence-backed findings reported by the department agents.
-2. IF ALL DEPARTMENTS REPORT "No historical evidences/decisions found." (or have 0.0 confidence / no retrieved cases):
+   - For a legal question, retrieved legal sources are independent evidence and can support a legal answer even when no MARS historical cases exist. Historical MARS cases are internal precedent, never proof of current law.
+   - If authoritative law or regulation is listed, answer the legal question from that source and cite its title and URL. If its status is unknown or currency was not checked, say so.
+   - If only secondary judgment discovery is listed, label it as unverified discovery and do not present a holding as authoritative.
+2. IF ALL DEPARTMENTS REPORT "No historical evidences/decisions found." (or have 0.0 confidence / no retrieved cases) AND no authoritative legal or regulatory source was retrieved:
    - You MUST NOT fabricate, invent, or hallucinate a speculative business strategy, rollout plan, budget, or timeline.
    - Under "Key Insights": State clearly that no historical cases or precedents were found in the dataset across any department.
    - Under "Conflicts": State "None (no historical data to evaluate)".
@@ -176,6 +255,9 @@ CRITICAL GROUNDING DIRECTIVES (STRICT EVIDENCE-ONLY REQUIREMENT):
    - Make the Final Decision consistent with the conflicts, risks, and roadmap; do not overstate what the precedents establish.
 5. CITATION FORMATTING REQUIREMENT:
    - Whenever citing precedent cases, ALWAYS use the EXACT bracketed case ID provided in the assessments, e.g., [AAPL-2023Q1-0001]. Never abbreviate, truncate, or hallucinate case numbers.
+   - Historical MARS case IDs are organizational precedent only; they do not establish current legal requirements.
+   - Cite current legal requirements only when an authoritative law or regulation appears under the Legal source lines. Include its title and source URL; if no authoritative source is listed, state that current-law verification is unavailable.
+   - Never report that no applicable law exists solely because a provider search returned no matches; describe that as a retrieval gap.
 
 Output Format (STRICT):
 Key Insights:

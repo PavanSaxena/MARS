@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 AGENT_TOOL_REGISTRY: Dict[str, List[str]] = {
     "finance_agent": ["FinancialDataTool", "MarketAnalysisTool"],
     "rd_agent": ["ResearchDatabaseTool", "ExperimentTrackerTool"],
-    "legal_agent": ["search_laws", "get_law", "search_regulations",
+    "legal_agent": ["search_laws", "get_law", "search_regulations", "get_regulation",
                     "list_supported_jurisdictions", "search_judgments", "get_judgment",
                     "ComplianceCheckerTool"],
     "operations_agent": ["OperationsDashboardTool", "SupplyChainAnalyzerTool"],
@@ -52,8 +52,14 @@ def execute_tool_call(agent_name: str, tool_name: str, parameters: Dict[str, Any
         }
 
     try:
+        # LLMs commonly call the country selector ``jurisdiction`` because
+        # that is the term used in legal reasoning/output fields. Accept it
+        # as an alias while the MCP tool schema remains country-specific.
+        call_parameters = dict(parameters)
+        if agent_name == "legal_agent" and "country" not in call_parameters and "jurisdiction" in call_parameters:
+            call_parameters["country"] = call_parameters.pop("jurisdiction")
         logger.info("tool_execution_started agent=%s tool=%s", agent_name, tool_name)
-        result = call_tool_sync(tool_name, parameters)
+        result = call_tool_sync(tool_name, call_parameters)
         logger.info("tool_execution_finished agent=%s tool=%s status=success", agent_name, tool_name)
         return {"status": "success", "result": result}
     except Exception as e:

@@ -621,7 +621,7 @@ def run_llm_with_tools(
     prompt: str,
     tools: List[Any],
     agent_name: str,
-) -> Tuple[str, List[str], Any]:
+) -> Tuple[str, List[str], Any, List[Dict[str, Any]]]:
     """
     Bind `tools` to `llm`, let it optionally call one of them, execute any
     tool calls via app.tools.tool_executor.execute_tool_call (respecting the
@@ -662,19 +662,19 @@ def run_llm_with_tools(
         if "tool calling" in str(e).lower() or "not supported" in str(e).lower():
             logger.warning(f"[{agent_name}] Tool calling not supported by provider ({e}), falling back to direct prompt")
             response = _invoke_with_rate_limit_retry(llm.invoke, prompt)
-            return _normalize_content(getattr(response, "content", str(response))), [], response
-        logger.error(f"[{agent_name}] Error during tool-bound LLM invocation: {e}", exc_info=True)
+            return _normalize_content(getattr(response, "content", str(response))), [], response, []
         raise e
 
     tool_calls = getattr(ai_message, "tool_calls", None) or []
     if not tool_calls:
         logger.info("llm_tool_decision_finished agent=%s tool_calls=0", agent_name)
         logger.info(f"[{agent_name}] Model decided not to call any tools; returning direct answer")
-        return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message
+        return _normalize_content(getattr(ai_message, "content", str(ai_message))), [], ai_message, []
 
     logger.info("llm_tool_decision_finished agent=%s tool_calls=%d", agent_name, len(tool_calls))
     messages: List[Any] = [HumanMessage(content=prompt), ai_message]
     used_tools: List[str] = []
+    tool_results: List[Dict[str, Any]] = []
 
     for call in tool_calls:
         tool_name = call.get("name")
@@ -683,6 +683,8 @@ def run_llm_with_tools(
         logger.info(f"[{agent_name}] Executing tool call '{tool_name}' with args: {args}")
         logger.info("tool_call_requested agent=%s tool=%s", agent_name, tool_name)
         result = execute_tool_call(agent_name, tool_name, args)
+        tool_results.append({"tool": tool_name, "status": result.get("status"),
+                             "result": result.get("result"), "message": result.get("message")})
         logger.info("tool_call_finished agent=%s tool=%s status=%s", agent_name, tool_name, result.get("status"))
         used_tools.append(tool_name)
 
@@ -694,13 +696,113 @@ def run_llm_with_tools(
         logger.info(f"[{agent_name}] Tool '{tool_name}' returned status={result.get('status')}")
         messages.append(ToolMessage(content=tool_content, tool_call_id=call.get("id") or tool_name))
 
+        # A statute search returns metadata only. Automatically fetch the
+        # official Act text so the legal agent can ground its final answer in
+        # legislation instead of relying on remembered summaries.
+        if agent_name == "legal_agent" and tool_name in {"search_laws", "search_regulations"} and result.get("status") == "success":
+            try:
+                search_payload = json.loads(str(result.get("result") or "{}"))
+            except (TypeError, ValueError):
+                search_payload = {}
+            source_rows = search_payload.get("results", []) if isinstance(search_payload, dict) else []
+            authoritative = next((row for row in source_rows if isinstance(row, dict)
+                                  and row.get("authority") == "authoritative"
+                                  and row.get("title")), None)
+            if authoritative:
+                country = args.get("country") or args.get("jurisdiction") or "India"
+                detail_tool = "get_regulation" if tool_name == "search_regulations" else "get_law"
+                detail_argument = "regulation_name_or_id" if detail_tool == "get_regulation" else "law_name_or_id"
+                detail = execute_tool_call("legal_agent", detail_tool, {
+                    detail_argument: authoritative.get("title") or authoritative.get("id"),
+                    "country": country,
+                })
+                tool_results.append({"tool": detail_tool, "status": detail.get("status"),
+                                     "result": detail.get("result"), "message": detail.get("message")})
+                detail_content = (str(detail.get("result")) if detail.get("status") == "success"
+                                  else f"Tool error: {detail.get('message')}")
+                messages.append(ToolMessage(content=detail_content,
+                                            tool_call_id=f"{call.get('id') or tool_name}-official-text"))
+                used_tools.append(detail_tool)
+
     # Invoke base llm (without tools bound) so the model is forced to synthesize
     # the final structured JSON response rather than attempting another tool call.
     logger.info(f"[{agent_name}] Synthesizing final answer after {len(used_tools)} tool call(s)")
     logger.info("llm_tool_follow_up_started agent=%s", agent_name)
+    messages.append(HumanMessage(
+        content="Synthesize your final answer now from the retrieved historical evidence and tool results above. "
+                "Do not request or call any more tools. Return only the required structured JSON."
+    ))
     final_message = _invoke_with_rate_limit_retry(llm.invoke, messages)
     logger.info("llm_tool_follow_up_finished agent=%s", agent_name)
-    return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message
+    return _normalize_content(getattr(final_message, "content", str(final_message))), used_tools, final_message, tool_results
+
+
+def _collect_legal_evidence(tool_results: List[Dict[str, Any]]) -> Tuple[List[dict], List[dict], List[str]]:
+    """Extract only provider-returned evidence; treat provider errors as gaps."""
+    legal_evidence: List[dict] = []
+    judicial_evidence: List[dict] = []
+    issues: List[str] = []
+
+    def _add_law(item: dict, default_type: str) -> None:
+        legal_evidence.append({
+            "type": item.get("type") or default_type,
+            "id": item.get("id"), "title": item.get("title"),
+            "section": item.get("section"), "sections": item.get("sections", []),
+            "jurisdiction": item.get("jurisdiction"), "source": item.get("source"),
+            "authority": item.get("authority", "unknown"),
+            "source_url": item.get("source_url"), "retrieved_at": item.get("retrieved_at"),
+            "status": item.get("status"), "effective_date": item.get("effective_date"),
+            "currentness": item.get("currentness"), "full_text": item.get("full_text"),
+        })
+
+    def _add_judgment(item: dict) -> None:
+        judicial_evidence.append({
+            "type": "judgment", "id": item.get("id"), "title": item.get("title"),
+            "court": item.get("court"), "bench": item.get("bench"),
+            "date": item.get("date"), "citations": item.get("citations", []),
+            "headnote": item.get("headnote"), "full_text": item.get("full_text"),
+            "jurisdiction": item.get("jurisdiction"), "source": item.get("source"),
+            "authority": item.get("authority", "unknown"),
+            "source_url": item.get("source_url"), "retrieved_at": item.get("retrieved_at"),
+        })
+
+    for record in tool_results:
+        tool_name = record.get("tool", "")
+        if record.get("status") != "success":
+            if tool_name != "ComplianceCheckerTool":
+                issues.append(str(record.get("message") or "Legal provider call failed."))
+            continue
+        raw = record.get("result")
+        if not isinstance(raw, str):
+            continue
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("error"):
+            issues.append(str(payload.get("message") or payload["error"]))
+        if payload.get("authoritative_verification") == "unavailable":
+            issues.append("Authoritative legal verification was unavailable for this jurisdiction.")
+        items = payload.get("results", [])
+        if not isinstance(items, list):
+            items = []
+        single = payload.get("result")
+        if isinstance(single, dict):
+            items = [*items, single]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if tool_name in {"search_judgments", "get_judgment"} or item.get("type") == "judgment":
+                _add_judgment(item)
+            elif tool_name in {"search_laws", "get_law", "search_regulations", "get_regulation"}:
+                default_type = "regulation" if tool_name == "search_regulations" else "statute"
+                _add_law(item, default_type)
+    provider_calls = {"search_laws", "get_law", "search_regulations", "get_regulation", "search_judgments", "get_judgment"}
+    if any(record.get("tool") in provider_calls for record in tool_results) and not (legal_evidence or judicial_evidence) and not issues:
+        issues.append("Legal providers returned no verifiable legal evidence for this query.")
+    return legal_evidence, judicial_evidence, list(dict.fromkeys(issues))
 
 
 def execute_department_agent(
@@ -710,6 +812,7 @@ def execute_department_agent(
     output_key: str,
     role_points: List[str],
     rules: List[str],
+    preloaded_tool_results: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Generic runner for department specialist agents (finance, legal, operations, rd).
 
@@ -744,9 +847,15 @@ def execute_department_agent(
     )
 
     logger.info("llm_started agent=%s", dept_code)
-    content, tools_used, final_message = run_llm_with_tools(
+    content, tools_used, final_message, tool_results = run_llm_with_tools(
         get_llm(state.get("model")), prompt, tools, agent_name=agent_name
     )
+    if preloaded_tool_results:
+        tool_results = [*preloaded_tool_results, *tool_results]
+        tools_used = list(dict.fromkeys([
+            *(record.get("tool") for record in preloaded_tool_results if record.get("tool")),
+            *tools_used,
+        ]))
     logger.info("llm_finished agent=%s tools_used=%s", dept_code, tools_used)
 
     parsed_output = parse_structured_output(content, preserve_legal_confidence=(dept_code == "legal"))
@@ -761,10 +870,30 @@ def execute_department_agent(
     )
     if dept_code == "legal":
         parsed_output.setdefault("historical_case_evidence", parsed_output.get("retrieved_cases", []))
-        parsed_output.setdefault("legal_evidence", [])
-        parsed_output.setdefault("judicial_evidence", [])
+        legal_evidence, judicial_evidence, provider_issues = _collect_legal_evidence(tool_results)
+        if legal_evidence or judicial_evidence:
+            # Evidence comes from MCP provider payloads, not from model-generated citations.
+            parsed_output["legal_evidence"] = legal_evidence
+            parsed_output["judicial_evidence"] = judicial_evidence
+        else:
+            parsed_output["legal_evidence"] = []
+            parsed_output["judicial_evidence"] = []
+        if provider_issues and not (legal_evidence or judicial_evidence):
+            parsed_output["response"] = (
+                "I could not verify the applicable Indian legal sources because the authoritative provider "
+                "was unavailable or returned no evidence. No current-law conclusion can be provided from this lookup."
+            )
+            parsed_output["reasoning"] = "; ".join(provider_issues)
+            parsed_output["confidence"] = 0.0
+            parsed_output["warnings"] = ["legal_verification_unavailable", *provider_issues]
+        elif judicial_evidence and not legal_evidence and any(
+            item.get("authority") != "authoritative" for item in judicial_evidence
+        ):
+            caveat = "Statutory requirements were not verified from an authoritative legislation source."
+            parsed_output["response"] = f"{parsed_output.get('response', '').strip()} {caveat}".strip()
+            parsed_output["warnings"] = ["authoritative_statute_unavailable"]
     if warnings:
-        parsed_output["warnings"] = warnings
+        parsed_output["warnings"] = list(dict.fromkeys([*parsed_output.get("warnings", []), *warnings]))
     logger.info("agent_finished agent=%s", dept_code)
 
     return {
