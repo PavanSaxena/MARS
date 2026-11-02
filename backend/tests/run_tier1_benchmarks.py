@@ -15,14 +15,17 @@ import sys
 import json
 import time
 
-# Ensure backend root is in python path
+# Ensure both backend root and MARS repo root are on sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_root = os.path.dirname(current_dir) if os.path.basename(current_dir) == "tests" else current_dir
+mars_root = os.path.dirname(backend_root)  # one level up from backend/
 if backend_root not in sys.path:
     sys.path.insert(0, backend_root)
+if mars_root not in sys.path:
+    sys.path.insert(0, mars_root)
 
-from evaluation.longitudinal_evaluation import run_longitudinal_evaluation
-from evaluation.multicorp_benchmark import run_multicorp_benchmark
+from evaluation.eval_longitudinal import run_longitudinal_evaluation
+from evaluation.eval_routing import run_multicorp_benchmark
 from evaluation.statistical_significance import paired_bootstrap_test, compute_fleiss_kappa
 from app.reasoning.conformal_predictor import ConformalRiskController
 from app.reasoning.calibration_metrics import compute_calibration_curve

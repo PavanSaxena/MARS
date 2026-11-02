@@ -7,11 +7,10 @@ import json
 import os
 from pathlib import Path
 
-from evaluation_v2.dataset import REPO_ROOT
-from evaluation_v2.dataset import load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation_v2.dynamic_weighting_ablation import _dept_key, _feature_tuple, _weighted_confidence
-from evaluation_v2.metrics import calibration_curve
-from evaluation_v2.retrieval import BM25Index
+from evaluation.dataset import REPO_ROOT, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.dynamic_weighting_ablation import _dept_key, _feature_tuple, _weighted_confidence
+from evaluation.eval_retrieval import BM25Index
+from evaluation.metrics import calibration_curve
 
 
 DEFAULT_GAINS = [0.0, 0.25, 0.50, 0.70, 0.85, 1.00, 1.20]
@@ -78,7 +77,7 @@ def run_gain_sweep(
         )
 
     return {
-        "protocol": "evaluation_v2 dynamic weighting gain sweep",
+        "protocol": "evaluation dynamic weighting gain sweep",
         "split": split_name,
         "cases": len(prepared),
         "k": k,
@@ -98,7 +97,7 @@ def main() -> None:
     parser.add_argument("--gains", default=",".join(str(g) for g in DEFAULT_GAINS))
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "dynamic_weighting_gain_sweep.json"),
+        default=str(REPO_ROOT / "evaluation" / "artifacts" / "dynamic_weighting_gain_sweep.json"),
     )
     args = parser.parse_args()
     gains = [float(item.strip()) for item in args.gains.split(",") if item.strip()]

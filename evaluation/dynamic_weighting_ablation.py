@@ -20,9 +20,9 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
 
-from evaluation_v2.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
-from evaluation_v2.metrics import calibration_curve
-from evaluation_v2.retrieval import BM25Index, tokenize
+from evaluation.dataset import REPO_ROOT, CaseRecord, load_cases, replay_query_text, split_cases, visible_corpus
+from evaluation.eval_retrieval import BM25Index, tokenize
+from evaluation.metrics import calibration_curve
 
 
 STATIC_DEFAULT = (0.45, 0.20, 0.35)
@@ -121,7 +121,7 @@ def run_dynamic_weighting_ablation(
     }
 
     return {
-        "protocol": "evaluation_v2 query-adaptive dynamic weighting ablation",
+        "protocol": "evaluation query-adaptive dynamic weighting ablation",
         "split": split_name,
         "cases": len(targets),
         "k": k,
@@ -218,7 +218,7 @@ def main() -> None:
     parser.add_argument("--dynamic-gain", type=float, default=0.50)
     parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "evaluation_v2" / "artifacts" / "dynamic_weighting_ablation.json"),
+        default=str(REPO_ROOT / "evaluation" / "artifacts" / "dynamic_weighting_ablation.json"),
     )
     args = parser.parse_args()
     result = run_dynamic_weighting_ablation(

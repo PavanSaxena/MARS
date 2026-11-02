@@ -1,4 +1,4 @@
-"""Runtime-style tracing primitives for evaluation_v2.
+"""Runtime-style tracing primitives for evaluation.
 
 The trace object is deliberately model-agnostic. Real runtime instrumentation
 can populate the same fields later; deterministic replay baselines already use

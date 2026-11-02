@@ -4,7 +4,23 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.reasoning.outcome_analysis import analyze_outcomes
-from app.reasoning.similarity import compute_similarity
+
+
+def compute_similarity(cases: List[dict]) -> float:
+    """Compute average similarity score across retrieved cases (1 - cosine distance or explicit similarity)."""
+    if not cases:
+        return 0.0
+    scores = []
+    for case in cases:
+        if "similarity" in case and case["similarity"] is not None:
+            scores.append(float(case["similarity"]))
+        elif "distance" in case and case["distance"] is not None:
+            scores.append(1.0 - float(case["distance"]))
+        elif "metadata" in case and isinstance(case.get("metadata"), dict) and "similarity" in case["metadata"]:
+            scores.append(float(case["metadata"]["similarity"]))
+        else:
+            scores.append(1.0 - float(case.get("distance", 1.0)))
+    return sum(scores) / len(scores)
 
 # Default multi-factor weights (per CBR decision support specification):
 # - 45% Case Relevance (vector similarity)
@@ -345,4 +361,43 @@ def calculate_confidence_with_details(
     final_conf = round(max(0.0, min(1.0, composite)), 4)
     return final_conf, weight_info
 
+
+
+def generate_explanation(
+    cases: List[dict],
+    confidence: Optional[float],
+    tools_used: Optional[List[str]] = None,
+    reported_confidence: Optional[float] = None,
+    weight_rationale: Optional[str] = None,
+) -> str:
+    """Generate a human-readable explanation of retrieval, tool use, and confidence."""
+    confidence_text = f"{confidence:.2f}" if isinstance(confidence, (int, float)) else "0.00"
+    tools_text = f"Tools consulted: {', '.join(tools_used)}." if tools_used else "No tools were called."
+    weights_line = f"\nWeight Allocation: {weight_rationale}" if weight_rationale else ""
+
+    if not cases or (confidence is not None and confidence <= 0.0):
+        return (
+            "No relevant historical cases found in the dataset for this query.\n"
+            f"Case-based confidence: {confidence_text}.\n"
+            f"{tools_text}{weights_line}"
+        )
+
+    if reported_confidence == 0.0:
+        return (
+            "Historical cases were retrieved from the dataset but were not "
+            "sufficiently relevant to this query to support a grounded recommendation. "
+            "No evidence was used in this agent's output.\n"
+            f"Case-based confidence: {confidence_text}.\n"
+            f"{tools_text}{weights_line}"
+        )
+
+    outcomes = [c.get("outcome", "unknown") for c in cases if c.get("outcome")]
+    outcome_summary = ", ".join(set(outcomes)) if outcomes else "None recorded"
+
+    return (
+        f"Found {len(cases)} relevant historical case(s).\n"
+        f"Historical outcomes observed: {outcome_summary}.\n"
+        f"Case-based confidence: {confidence_text}.\n"
+        f"{tools_text}{weights_line}"
+    )
 

@@ -143,7 +143,10 @@ create trigger trg_check_outcome_chronology
 --      outcome_summary   <- outcomes.observation_excerpt, falling back to
 --                            outcome_label, or "unresolved" if no outcome
 --                            has been recorded yet for that case
+--      outcome_label     <- structured label used for safe prompt grouping
 -- -----------------------------------------------------------------------------
+drop function if exists match_decisions(vector, int, text, date);
+
 create or replace function match_decisions (
   query_embedding vector(384),
   match_count int default 5,
@@ -162,6 +165,7 @@ returns table (
   quarter text,
   risk_level text,
   outcome_summary text,
+  outcome_label text,
   similarity float
 )
 language sql stable
@@ -178,6 +182,7 @@ as $$
     to_char(d.decision_date, 'YYYY"Q"Q') as quarter,
     d.action_type as risk_level,
     coalesce(o.observation_excerpt, o.outcome_label, 'unresolved') as outcome_summary,
+    coalesce(o.outcome_label, 'unresolved') as outcome_label,
     1 - (d.embedding <=> query_embedding) as similarity
   from decisions d
   left join outcomes o on o.case_id = d.case_id

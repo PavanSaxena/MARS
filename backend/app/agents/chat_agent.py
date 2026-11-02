@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Dict
 
 from app.agents.common import get_llm
 from app.state import State
+
+logger = logging.getLogger(__name__)
 
 _CHAT_SYSTEM = """You are the conversational voice of a multi-department business \
 decision assistant (Legal, Finance, Operations, R&D). A full department analysis \
@@ -44,6 +47,7 @@ def chat_agent(state: State) -> Dict[str, Any]:
     re-running the four department agents + aggregator.
     """
     messages = state.get("messages", [])
+    logger.info("chat_started message_count=%d", len(messages))
     llm = get_llm(state.get("model"))
 
     convo = [{"role": "system", "content": _CHAT_SYSTEM}]
@@ -52,7 +56,13 @@ def chat_agent(state: State) -> Dict[str, Any]:
         if chat_msg:
             convo.append(chat_msg)
 
-    response = llm.invoke(convo)
+    try:
+        response = llm.invoke(convo)
+    except Exception:
+        logger.exception("chat_failed")
+        raise
+
+    logger.info("chat_finished")
 
     return {
         "final_output": getattr(response, "content", str(response)),
